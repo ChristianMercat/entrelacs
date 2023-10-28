@@ -1,1 +1,0 @@
-{"login":"","cnx":"0","logo":"<img class='spip_logos' alt=\"\" src=\"local\/cache-vignettes\/L60xH80\/auton11-3760f.jpg\" width='60' height='80' style='height:80px;width:60px;' \/>","alea_actuel":"1973963574451a3c1f0a5384.61819110","alea_futur":"1015525865451a4990507f18.94273788"}
