@@ -26,3 +26,5 @@ a, a.spip_in { color: #459; }
       padding : 5px 0;}
 
 #document_actif { width: 100%; }
+
+p.repondre {display: none}
