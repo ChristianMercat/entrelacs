@@ -1,0 +1,28 @@
+div.spip_poesie { 
+background: #DFEFFF;
+	margin: 1em; 
+	padding-right: 1em; 
+	border-right: 1px solid;
+	font-size: 1.5em; 
+	font-family: Garamond, Georgia, Times, serif; }
+div.spip_poesie div { text-indent: -60px; margin-right: 60px; }
+
+#prelude {
+	color: #999999;
+}
+
+#sidebar h2, #sidebar h3{
+	color: #ABCCF1;
+}
+
+.post-chapo {
+font-weight: bold;
+}
+
+a, a.spip_in { color: #459; }
+
+.photo_titre {
+      display: inline;
+      padding : 5px 0;}
+
+#document_actif { width: 100%; }
