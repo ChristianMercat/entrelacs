@@ -27,7 +27,7 @@ a, a.spip_in { color: #459; }
 
 #document_actif { width: 100%; }
 
-p.repondre, #pied {display: none;}
+p.repondre, #pied, .formulaire_spip formulaire_site ajax {display: none;}
 
 #page {
     width: 100%;
