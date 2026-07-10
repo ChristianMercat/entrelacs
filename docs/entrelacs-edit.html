@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Éditeur de graphe planaire — Traceur d'Entrelacs</title>
+<style>
+  :root{
+    --ink: #12151a;
+    --ink-2: #1b2029;
+    --panel: #f2ead9;
+    --panel-2: #e7dcc2;
+    --line: #3a4250;
+    --cord: #2f7a68;      /* couleur d'arête / ressort */
+    --cord-hi: #c9a13b;   /* accent : ancrage, sélection */
+    --ink-text: #d8dee8;
+    --parch-text: #26221a;
+    --danger: #a4433a;
+    font-family: 'Spectral', Georgia, serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background: var(--ink); color: var(--ink-text); }
+  #app { display:flex; height:100vh; }
+  #canvasWrap { flex:1; position:relative; overflow:hidden; background:
+      radial-gradient(circle at 20% 15%, #191e27 0%, var(--ink) 60%); }
+  canvas { display:block; cursor: crosshair; }
+  #title {
+    position:absolute; top:14px; left:18px; font-size:1.15rem; letter-spacing:.04em;
+    color:#8fa0b8; pointer-events:none; user-select:none;
+  }
+  #title b{ color:var(--cord-hi); font-weight:600;}
+  #side {
+    width: 300px; background: var(--panel); color: var(--parch-text);
+    border-left: 1px solid #00000030; padding: 16px 18px; overflow-y:auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  }
+  #side h1 { font-family:'Spectral', serif; font-size:1.05rem; margin:0 0 12px; letter-spacing:.02em;}
+  #side h2 { font-family:'Spectral', serif; font-size:.85rem; margin:18px 0 6px; color:#5b5342; text-transform:uppercase; letter-spacing:.08em; border-bottom:1px solid var(--panel-2); padding-bottom:4px;}
+  .modes { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  button {
+    font-family:'JetBrains Mono', monospace; font-size:11.5px; cursor:pointer;
+    background:var(--panel-2); border:1px solid #00000025; color:var(--parch-text);
+    padding:7px 8px; border-radius:3px; transition:.12s;
+  }
+  button:hover{ background:#d9cba1; }
+  button.active{ background:var(--cord); color:#fff; border-color:var(--cord); }
+  button.full{ grid-column:1/-1; }
+  button.warn{ background:var(--danger); color:#fff; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin:6px 0;}
+  .row label{ flex:1; }
+  input[type=number]{ width:80px; font-family:inherit; font-size:11.5px; padding:3px 5px; border:1px solid #00000030; border-radius:2px;}
+  input[type=checkbox]{ transform:scale(1.1); }
+  #propPanel { display:none; }
+  #propPanel.show{ display:block; }
+  #hint { font-size:11px; color:#6b6248; line-height:1.5; margin-top:4px;}
+  #fileIn{ display:none; }
+  #status{ position:absolute; bottom:10px; left:18px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#5c6b82; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap">
+    <div id="title" data-i18n-html="title_html"> <b>éditeur de graphe planaire et d'entrelacs</b></div>
+    <canvas id="cv"></canvas>
+    <div id="status">—</div>
+  </div>
+  <div id="side">
+    <div class="row" style="margin-bottom:12px">
+      <label>🌐</label>
+      <select id="langSelect" style="flex:1">
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+        <option value="es">Español</option>
+        <option value="it">Italiano</option>
+        <option value="pt">Português</option>
+      </select>
+    </div>
+    <h1 data-i18n="h1_tools">Outils</h1>
+    <div class="modes">
+      <button id="modeSelect" class="active" data-i18n="btn_select">Sélection</button>
+      <button id="modeVertex" data-i18n="btn_vertex">+ Sommet</button>
+      <button id="modeEdge" data-i18n="btn_edge">+ Arête</button>
+      <button id="modeDelete" data-i18n="btn_delete">Supprimer</button>
+    </div>
+    <div id="hint" data-i18n-html="hint_tools_html">
+      <b>Sommet</b> : clic sur le fond pour créer.<br>
+      <b>Arête</b> : clic sur un sommet, puis un second (identique pour une boucle).<br>
+      <b>Sélection</b> : glisser un sommet pour le déplacer (clic droit = ancrer/désancrer) ; glisser le petit point milieu d'une arête pour courber son arc (clic droit dessus = revenir à la courbure nulle) ; clic sur l'arc pour sélectionner l'arête.<br>
+      <b>Supprimer</b> : clic sur sommet ou arête.
+    </div>
+
+    <h2 data-i18n="h2_relaxation">Relaxation</h2>
+    <div class="row"><label data-i18n="lbl_stiffness">Raideur globale</label><input id="gStiff" type="number" step="0.05" value="0.35"></div>
+    <div class="row"><label data-i18n="lbl_repel">Répulsion sommets</label><input id="gRepel" type="number" step="100" value="1800"></div>
+    <div class="row"><label data-i18n="lbl_minangle">Angle mini (°)</label><input id="gMinAngle" type="number" step="1" value="28"></div>
+    <div class="row"><label data-i18n="lbl_curverepel">Répulsion des arcs</label><input id="gCurveRepel" type="number" step="50" value="900"></div>
+    <div class="row"><label data-i18n="lbl_curvature">Rappel rectiligne</label><input id="gCurvature" type="number" step="0.02" value="0.18"></div>
+    <div class="row"><label data-i18n="lbl_uncross">Anti-croisement</label><input id="gUncross" type="number" step="0.5" value="7"></div>
+    <div class="modes">
+      <button id="runToggle" class="full" data-i18n="btn_relax_start">▶ Lancer la relaxation</button>
+    </div>
+
+    <h2 data-i18n="h2_knot">Entrelacs</h2>
+    <div class="row"><label data-i18n="lbl_strandwidth">Largeur des brins</label><input id="strandWidth" type="number" step="1" value="14"></div>
+    <div class="modes">
+      <button id="knotToggle" class="full" data-i18n="btn_knot_show">🧵 Afficher l'entrelacs</button>
+      <button id="tangentToggle" class="full" data-i18n="btn_tangent">✎ Éditer les tangentes</button>
+    </div>
+    <div id="hint" data-i18n-html="hint_knot_html">
+      Chaque arête code un croisement en son milieu, et porte les deux
+      points de contrôle (un par bout) qui définissent chaque brin —
+      courbe de Bézier de degré simple, tangente initiale à 30°–60° de
+      l'arête. Clic droit sur un croisement, en vue Entrelacs, pour
+      inverser quel brin passe dessus (« priorité à droite » ↔ « à
+      gauche »). Avec l'édition des tangentes active : glissez les
+      poignées vertes pour ajuster angle et longueur. Le graphe reste
+      éditable et relaxable pendant ce temps.
+    </div>
+
+    <h2 data-i18n="h2_props">Propriétés</h2>
+    <div id="propPanel">
+      <div id="propVertex" style="display:none">
+        <div class="row"><label><span data-i18n="lbl_vertex_hash">Sommet #</span><span id="vId"></span></label></div>
+        <div class="row"><label data-i18n="lbl_anchor">Ancré (friction ∞)</label><input id="vAnchor" type="checkbox"></div>
+        <div class="row"><label data-i18n="lbl_friction">Friction</label><input id="vFriction" type="number" step="0.1" min="0" value="1"></div>
+      </div>
+      <div id="propEdge" style="display:none">
+        <div class="row"><label><span data-i18n="lbl_edge_hash">Arête #</span><span id="eId"></span></label></div>
+        <div class="row"><label data-i18n="lbl_edge_stiffness">Raideur k</label><input id="eStiff" type="number" step="0.05" value="1"></div>
+        <div class="row"><label data-i18n="lbl_restlength">Longueur à vide</label><input id="eRest" type="number" step="1" value="80"></div>
+      </div>
+      <div id="propNone" style="color:#8a8163" data-i18n="txt_none_selected">Rien de sélectionné.</div>
+    </div>
+
+    <h2 data-i18n="h2_file">Fichier</h2>
+    <div class="modes">
+      <button id="btnSave" class="full" data-i18n="btn_save">💾 Sauvegarder (.json)</button>
+      <button id="btnLoad" class="full" data-i18n="btn_load">📂 Restaurer un fichier</button>
+      <button id="btnExportSvg" class="full" data-i18n="btn_export_svg">⬇ Exporter en SVG</button>
+      <button id="btnClear" class="full warn" data-i18n="btn_clear">Tout effacer</button>
+    </div>
+    <input id="fileIn" type="file" accept="application/json">
+    <div id="hint" style="margin-top:14px" data-i18n="hint_file">
+      Le fichier sauvegardé contient les sommets (position, friction) et les arêtes
+      (extrémités, raideur, longueur à vide, ordre trigonométrique, priorité), ainsi
+      que les réglages de tangentes des croisements.
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------
+   INTERNATIONALISATION
+   Détection : préférence sauvegardée > langue du navigateur > anglais.
+   Le sélecteur en haut du panneau permet de changer à tout moment.
+--------------------------------------------------------------------- */
+const I18N = {
+fr: {
+    doc_title: "Éditeur de graphe planaire et Entrelacs",
+  title_html: "<b>éditeur de graphe planaire et son <a href='http://entrelacs.net'>entrelacs</a></b>",
+  h1_tools: "Outils", btn_select: "Sélection", btn_vertex: "+ Sommet", btn_edge: "+ Arête", btn_delete: "Supprimer",
+  hint_tools_html: "<b>Sommet</b> : clic sur le fond pour créer.<br><b>Arête</b> : clic sur un sommet, puis un second (identique pour une boucle).<br><b>Sélection</b> : glisser un sommet pour le déplacer (clic droit = ancrer/désancrer) ; glisser le petit point milieu d'une arête pour courber son arc (clic droit dessus = revenir à la courbure nulle) ; clic sur l'arc pour sélectionner l'arête.<br><b>Supprimer</b> : clic sur sommet ou arête.",
+  h2_relaxation: "Relaxation", lbl_stiffness: "Raideur globale", lbl_repel: "Répulsion sommets", lbl_minangle: "Angle mini (°)",
+  lbl_curverepel: "Répulsion des arcs", lbl_curvature: "Rappel rectiligne", lbl_uncross: "Anti-croisement",
+  btn_relax_start: "▶ Lancer la relaxation", btn_relax_stop: "⏸ Suspendre la relaxation",
+  h2_knot: "Entrelacs", lbl_strandwidth: "Largeur des brins", btn_knot_show: "🧵 Afficher l'entrelacs", btn_knot_hide: "🧵 Masquer l'entrelacs",
+  btn_tangent: "✎ Éditer les tangentes",
+  hint_knot_html: "Chaque arête code un croisement en son milieu, et porte les deux points de contrôle (un par bout) qui définissent chaque brin — courbe de Bézier de degré simple, tangente initiale à 30°–60° de l'arête. Clic droit sur un croisement, en vue Entrelacs, pour inverser quel brin passe dessus (« priorité à droite » ↔ « à gauche »). Avec l'édition des tangentes active : glissez les poignées vertes pour ajuster angle et longueur. Le graphe reste éditable et relaxable pendant ce temps.",
+  h2_props: "Propriétés", lbl_vertex_hash: "Sommet #", lbl_anchor: "Ancré (friction ∞)", lbl_friction: "Friction",
+  lbl_edge_hash: "Arête #", lbl_edge_stiffness: "Raideur k", lbl_restlength: "Longueur à vide", txt_none_selected: "Rien de sélectionné.",
+  h2_file: "Fichier", btn_save: "💾 Sauvegarder (.json)", btn_load: "📂 Restaurer un fichier", btn_export_svg: "⬇ Exporter en SVG", btn_clear: "Tout effacer",
+  hint_file: "Le fichier sauvegardé contient les sommets (position, friction) et les arêtes (extrémités, raideur, longueur à vide, ordre trigonométrique, priorité), ainsi que les réglages de tangentes des croisements.",
+  alert_empty_export: "Le graphe est vide — rien à exporter.", alert_invalid_file_prefix: "Fichier invalide : ", confirm_clear: "Effacer tout le graphe ?",
+  unit_vertices: "sommets", unit_edges: "arêtes", unit_strands: "brin(s)", status_relaxing: "relaxation en cours…"
+},
+en: {
+  doc_title: "Planar Graph Editor — Links Drawer",
+  title_html: "<b>planar graph & <a href='http://entrelacs.net'>links</a> editor</b>",
+  h1_tools: "Tools", btn_select: "Select", btn_vertex: "+ Vertex", btn_edge: "+ Edge", btn_delete: "Delete",
+  hint_tools_html: "<b>Vertex</b>: click empty space to create.<br><b>Edge</b>: click a vertex, then a second one (same vertex twice for a loop).<br><b>Select</b>: drag a vertex to move it (right-click = anchor/unanchor); drag an edge's small midpoint to bend its arc (right-click it to reset to zero curvature); click the arc to select the edge.<br><b>Delete</b>: click a vertex or an edge.",
+  h2_relaxation: "Relaxation", lbl_stiffness: "Global stiffness", lbl_repel: "Vertex repulsion", lbl_minangle: "Min angle (°)",
+  lbl_curverepel: "Arc repulsion", lbl_curvature: "Straightness pull", lbl_uncross: "Anti-crossing",
+  btn_relax_start: "▶ Start relaxation", btn_relax_stop: "⏸ Pause relaxation",
+  h2_knot: "Interlace", lbl_strandwidth: "Strand width", btn_knot_show: "🧵 Show interlace", btn_knot_hide: "🧵 Hide interlace",
+  btn_tangent: "✎ Edit tangents",
+  hint_knot_html: "Each edge encodes a crossing at its midpoint, and carries the two control points (one per end) that define each strand — a low-degree Bézier curve, initial tangent at 30°–60° from the edge. Right-click a crossing, in Interlace view, to flip which strand passes on top (\"right priority\" ↔ \"left\"). With tangent editing on: drag the green handles to adjust angle and length. The graph stays editable and relaxable throughout.",
+  h2_props: "Properties", lbl_vertex_hash: "Vertex #", lbl_anchor: "Anchored (friction ∞)", lbl_friction: "Friction",
+  lbl_edge_hash: "Edge #", lbl_edge_stiffness: "Stiffness k", lbl_restlength: "Rest length", txt_none_selected: "Nothing selected.",
+  h2_file: "File", btn_save: "💾 Save (.json)", btn_load: "📂 Load a file", btn_export_svg: "⬇ Export as SVG", btn_clear: "Clear all",
+  hint_file: "The saved file contains the vertices (position, friction) and edges (endpoints, stiffness, rest length, trigonometric order, priority), as well as the crossing tangent settings.",
+  alert_empty_export: "The graph is empty — nothing to export.", alert_invalid_file_prefix: "Invalid file: ", confirm_clear: "Clear the whole graph?",
+  unit_vertices: "vertices", unit_edges: "edges", unit_strands: "strand(s)", status_relaxing: "relaxing…"
+},
+de: {
+  doc_title: "Editor für planare Graphen — Knotenmuster",
+  title_html: " <b>Editor für planare Graphen und <a href='http://entrelacs.net'>Knotenmuster</a></b>",
+  h1_tools: "Werkzeuge", btn_select: "Auswahl", btn_vertex: "+ Knoten", btn_edge: "+ Kante", btn_delete: "Löschen",
+  hint_tools_html: "<b>Knoten</b>: Klick auf leere Fläche, um zu erstellen.<br><b>Kante</b>: Klick auf einen Knoten, dann auf einen zweiten (zweimal derselbe für eine Schlinge).<br><b>Auswahl</b>: Knoten ziehen, um ihn zu verschieben (Rechtsklick = verankern/lösen); den kleinen Mittelpunkt einer Kante ziehen, um ihren Bogen zu krümmen (Rechtsklick darauf setzt die Krümmung zurück); Klick auf den Bogen wählt die Kante aus.<br><b>Löschen</b>: Klick auf Knoten oder Kante.",
+  h2_relaxation: "Relaxation", lbl_stiffness: "Globale Steifigkeit", lbl_repel: "Knotenabstoßung", lbl_minangle: "Mindestwinkel (°)",
+  lbl_curverepel: "Bogenabstoßung", lbl_curvature: "Geradenzug", lbl_uncross: "Kreuzungsvermeidung",
+  btn_relax_start: "▶ Relaxation starten", btn_relax_stop: "⏸ Relaxation anhalten",
+  h2_knot: "Knotenmuster", lbl_strandwidth: "Strangbreite", btn_knot_show: "🧵 Knotenmuster anzeigen", btn_knot_hide: "🧵 Knotenmuster ausblenden",
+  btn_tangent: "✎ Tangenten bearbeiten",
+  hint_knot_html: "Jede Kante kodiert eine Kreuzung in ihrer Mitte und trägt die zwei Kontrollpunkte (einer je Ende), die jeden Strang festlegen — eine Bézierkurve niedrigen Grades, Anfangstangente 30°–60° zur Kante. Rechtsklick auf eine Kreuzung in der Knotenmuster-Ansicht kehrt um, welcher Strang obenliegt („Priorität rechts“ ↔ „links“). Bei aktiver Tangentenbearbeitung: die grünen Griffe ziehen, um Winkel und Länge anzupassen. Der Graph bleibt währenddessen editierbar und relaxierbar.",
+  h2_props: "Eigenschaften", lbl_vertex_hash: "Knoten #", lbl_anchor: "Verankert (Reibung ∞)", lbl_friction: "Reibung",
+  lbl_edge_hash: "Kante #", lbl_edge_stiffness: "Steifigkeit k", lbl_restlength: "Ruhelänge", txt_none_selected: "Nichts ausgewählt.",
+  h2_file: "Datei", btn_save: "💾 Speichern (.json)", btn_load: "📂 Datei laden", btn_export_svg: "⬇ Als SVG exportieren", btn_clear: "Alles löschen",
+  hint_file: "Die gespeicherte Datei enthält die Knoten (Position, Reibung) und Kanten (Endpunkte, Steifigkeit, Ruhelänge, trigonometrische Reihenfolge, Priorität) sowie die Tangenteneinstellungen der Kreuzungen.",
+  alert_empty_export: "Der Graph ist leer — nichts zu exportieren.", alert_invalid_file_prefix: "Ungültige Datei: ", confirm_clear: "Den gesamten Graphen löschen?",
+  unit_vertices: "Knoten", unit_edges: "Kanten", unit_strands: "Strang/Stränge", status_relaxing: "Relaxation läuft…"
+},
+es: {
+  doc_title: "Editor de grafos planares y su Entrelazado",
+  title_html: "<b>editor de grafos planares y <a href='http://entrelacs.net'>entrelazado</a></b>",
+  h1_tools: "Herramientas", btn_select: "Selección", btn_vertex: "+ Vértice", btn_edge: "+ Arista", btn_delete: "Eliminar",
+  hint_tools_html: "<b>Vértice</b>: clic en el fondo para crear.<br><b>Arista</b>: clic en un vértice, luego en un segundo (el mismo dos veces para un bucle).<br><b>Selección</b>: arrastra un vértice para moverlo (clic derecho = anclar/desanclar); arrastra el pequeño punto medio de una arista para curvar su arco (clic derecho sobre él para volver a curvatura nula); clic en el arco para seleccionar la arista.<br><b>Eliminar</b>: clic en un vértice o una arista.",
+  h2_relaxation: "Relajación", lbl_stiffness: "Rigidez global", lbl_repel: "Repulsión de vértices", lbl_minangle: "Ángulo mínimo (°)",
+  lbl_curverepel: "Repulsión de arcos", lbl_curvature: "Rectitud", lbl_uncross: "Anti-cruce",
+  btn_relax_start: "▶ Iniciar relajación", btn_relax_stop: "⏸ Pausar relajación",
+  h2_knot: "Entrelazado", lbl_strandwidth: "Ancho de las hebras", btn_knot_show: "🧵 Mostrar entrelazado", btn_knot_hide: "🧵 Ocultar entrelazado",
+  btn_tangent: "✎ Editar tangentes",
+  hint_knot_html: "Cada arista codifica un cruce en su punto medio y lleva los dos puntos de control (uno por extremo) que definen cada hebra — una curva de Bézier de bajo grado, tangente inicial a 30°–60° de la arista. Clic derecho en un cruce, en la vista Entrelazado, para invertir qué hebra pasa por encima (\"prioridad derecha\" ↔ \"izquierda\"). Con la edición de tangentes activa: arrastra las asas verdes para ajustar ángulo y longitud. El grafo permanece editable y relajable mientras tanto.",
+  h2_props: "Propiedades", lbl_vertex_hash: "Vértice #", lbl_anchor: "Anclado (fricción ∞)", lbl_friction: "Fricción",
+  lbl_edge_hash: "Arista #", lbl_edge_stiffness: "Rigidez k", lbl_restlength: "Longitud en reposo", txt_none_selected: "Nada seleccionado.",
+  h2_file: "Archivo", btn_save: "💾 Guardar (.json)", btn_load: "📂 Cargar un archivo", btn_export_svg: "⬇ Exportar como SVG", btn_clear: "Borrar todo",
+  hint_file: "El archivo guardado contiene los vértices (posición, fricción) y las aristas (extremos, rigidez, longitud en reposo, orden trigonométrico, prioridad), así como los ajustes de tangentes de los cruces.",
+  alert_empty_export: "El grafo está vacío — nada que exportar.", alert_invalid_file_prefix: "Archivo no válido: ", confirm_clear: "¿Borrar todo el grafo?",
+  unit_vertices: "vértices", unit_edges: "aristas", unit_strands: "hebra(s)", status_relaxing: "relajando…"
+},
+it: {
+  doc_title: "Editor di grafi planari e il suo Intreccio",
+  title_html: "<b>editor di grafi planari e <a href='http://entrelacs.net'>intreccio</a></b>",
+  h1_tools: "Strumenti", btn_select: "Selezione", btn_vertex: "+ Vertice", btn_edge: "+ Arco", btn_delete: "Elimina",
+  hint_tools_html: "<b>Vertice</b>: clic sullo sfondo per crearne uno.<br><b>Arco</b>: clic su un vertice, poi su un secondo (lo stesso due volte per un cappio).<br><b>Selezione</b>: trascina un vertice per spostarlo (clic destro = ancora/sblocca); trascina il piccolo punto medio di un arco per curvarlo (clic destro su di esso per tornare a curvatura nulla); clic sull'arco per selezionarlo.<br><b>Elimina</b>: clic su un vertice o un arco.",
+  h2_relaxation: "Rilassamento", lbl_stiffness: "Rigidità globale", lbl_repel: "Repulsione vertici", lbl_minangle: "Angolo minimo (°)",
+  lbl_curverepel: "Repulsione degli archi", lbl_curvature: "Richiamo rettilineo", lbl_uncross: "Anti-incrocio",
+  btn_relax_start: "▶ Avvia rilassamento", btn_relax_stop: "⏸ Sospendi rilassamento",
+  h2_knot: "Intreccio", lbl_strandwidth: "Larghezza dei fili", btn_knot_show: "🧵 Mostra intreccio", btn_knot_hide: "🧵 Nascondi intreccio",
+  btn_tangent: "✎ Modifica tangenti",
+  hint_knot_html: "Ogni arco codifica un incrocio nel suo punto medio e porta i due punti di controllo (uno per estremità) che definiscono ogni filo — una curva di Bézier di grado basso, tangente iniziale a 30°–60° dall'arco. Clic destro su un incrocio, in vista Intreccio, per invertire quale filo passa sopra (\"priorità destra\" ↔ \"sinistra\"). Con la modifica delle tangenti attiva: trascina le maniglie verdi per regolare angolo e lunghezza. Il grafo resta modificabile e rilassabile nel frattempo.",
+  h2_props: "Proprietà", lbl_vertex_hash: "Vertice #", lbl_anchor: "Ancorato (attrito ∞)", lbl_friction: "Attrito",
+  lbl_edge_hash: "Arco #", lbl_edge_stiffness: "Rigidità k", lbl_restlength: "Lunghezza a riposo", txt_none_selected: "Nessuna selezione.",
+  h2_file: "File", btn_save: "💾 Salva (.json)", btn_load: "📂 Carica un file", btn_export_svg: "⬇ Esporta come SVG", btn_clear: "Cancella tutto",
+  hint_file: "Il file salvato contiene i vertici (posizione, attrito) e gli archi (estremità, rigidità, lunghezza a riposo, ordine trigonometrico, priorità), oltre alle impostazioni delle tangenti agli incroci.",
+  alert_empty_export: "Il grafo è vuoto — niente da esportare.", alert_invalid_file_prefix: "File non valido: ", confirm_clear: "Cancellare l'intero grafo?",
+  unit_vertices: "vertici", unit_edges: "archi", unit_strands: "filo/fili", status_relaxing: "rilassamento in corso…"
+},
+pt: {
+  doc_title: "Editor de grafos planares e Entrelaçado",
+  title_html: "<b>editor de grafos planares e <a href='http://entrelacs.net'>entrelaçado</a></b>",
+  h1_tools: "Ferramentas", btn_select: "Seleção", btn_vertex: "+ Vértice", btn_edge: "+ Aresta", btn_delete: "Excluir",
+  hint_tools_html: "<b>Vértice</b>: clique no fundo para criar.<br><b>Aresta</b>: clique num vértice, depois num segundo (o mesmo duas vezes para um laço).<br><b>Seleção</b>: arraste um vértice para movê-lo (clique direito = ancorar/desancorar); arraste o pequeno ponto médio de uma aresta para curvar seu arco (clique direito nele para voltar à curvatura nula); clique no arco para selecionar a aresta.<br><b>Excluir</b>: clique num vértice ou aresta.",
+  h2_relaxation: "Relaxamento", lbl_stiffness: "Rigidez global", lbl_repel: "Repulsão de vértices", lbl_minangle: "Ângulo mínimo (°)",
+  lbl_curverepel: "Repulsão dos arcos", lbl_curvature: "Retorno retilíneo", lbl_uncross: "Anticruzamento",
+  btn_relax_start: "▶ Iniciar relaxamento", btn_relax_stop: "⏸ Pausar relaxamento",
+  h2_knot: "Entrelaçado", lbl_strandwidth: "Largura dos fios", btn_knot_show: "🧵 Mostrar entrelaçado", btn_knot_hide: "🧵 Ocultar entrelaçado",
+  btn_tangent: "✎ Editar tangentes",
+  hint_knot_html: "Cada aresta codifica um cruzamento em seu ponto médio e carrega os dois pontos de controle (um por extremidade) que definem cada fio — uma curva de Bézier de grau baixo, tangente inicial a 30°–60° da aresta. Clique direito num cruzamento, na vista Entrelaçado, para inverter qual fio passa por cima (\"prioridade direita\" ↔ \"esquerda\"). Com a edição de tangentes ativa: arraste as alças verdes para ajustar ângulo e comprimento. O grafo permanece editável e relaxável durante esse tempo.",
+  h2_props: "Propriedades", lbl_vertex_hash: "Vértice #", lbl_anchor: "Ancorado (fricção ∞)", lbl_friction: "Fricção",
+  lbl_edge_hash: "Aresta #", lbl_edge_stiffness: "Rigidez k", lbl_restlength: "Comprimento em repouso", txt_none_selected: "Nada selecionado.",
+  h2_file: "Arquivo", btn_save: "💾 Salvar (.json)", btn_load: "📂 Carregar um arquivo", btn_export_svg: "⬇ Exportar como SVG", btn_clear: "Limpar tudo",
+  hint_file: "O arquivo salvo contém os vértices (posição, fricção) e as arestas (extremidades, rigidez, comprimento em repouso, ordem trigonométrica, prioridade), além das configurações de tangentes dos cruzamentos.",
+  alert_empty_export: "O grafo está vazio — nada para exportar.", alert_invalid_file_prefix: "Arquivo inválido: ", confirm_clear: "Limpar todo o grafo?",
+  unit_vertices: "vértices", unit_edges: "arestas", unit_strands: "fio(s)", status_relaxing: "relaxando…"
+}
+};
+function detectLang(){
+  try { const saved = localStorage.getItem('entrelacs-lang'); if (saved && I18N[saved]) return saved; } catch(e){}
+  const nav = ((navigator.language||'en').slice(0,2)).toLowerCase();
+  return I18N[nav] ? nav : 'en';
+}
+let currentLang = detectLang();
+function t(key){ return (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key; }
+function applyI18n(){
+  document.documentElement.lang = currentLang;
+  document.title = t('doc_title');
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML = t(el.getAttribute('data-i18n-html')); });
+  const rt=document.getElementById('runToggle'); if (rt) rt.textContent = t(relaxing?'btn_relax_stop':'btn_relax_start');
+  const kt=document.getElementById('knotToggle'); if (kt) kt.textContent = t(showKnot?'btn_knot_hide':'btn_knot_show');
+  const ls=document.getElementById('langSelect'); if (ls) ls.value = currentLang;
+  if (typeof draw === 'function' && typeof vertices !== 'undefined') draw();
+}
+
+/* ---------------------------------------------------------------------
+   MODÈLE DE DONNÉES
+             `order` = liste des arêtes incidentes, dans l'ordre trigonométrique
+             (sens direct). Une boucle apparaît deux fois dans `order` (deux brins).
+   Arête   : { id, v1, v2, stiffness, restLength, mid:{x,y} }
+             v1 === v2 possible (boucle). Multi-arêtes autorisées (ids distincts).
+             `mid` est LE point milieu de l'arête — celui-là même qui deviendra,
+             en phase 2, le centre du croisement. Avec les deux extrémités, il
+             définit un arc de cercle (A, mid, B) : par défaut colinéaire (donc
+             un segment, courbure nulle), mais librement déplaçable — par
+             glisser-déposer ou par la relaxation — pour contourner un obstacle
+             (croisement d'arêtes, multi-arête). Trois points alignés donnent
+             naturellement un "cercle" de rayon infini, donc un segment : la
+             transition segment ⇄ arc est continue, pas un cas particulier.
+   Cette structure — sommets + collection d'arêtes + ordre cyclique par sommet —
+   est le "rotation system" nécessaire à la phase 2 (calcul du graphe médial :
+   pour une arête (v,v'), retrouver le prédécesseur/successeur de v' autour de v
+   et de v autour de v').
+--------------------------------------------------------------------- */
+
+let vertices = {};   // id -> vertex
+let edges = {};       // id -> edge
+let nextVId = 1, nextEId = 1;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+function resize(){ cv.width = cv.clientWidth = cv.parentElement.clientWidth;
+                    cv.height = cv.clientHeight = cv.parentElement.clientHeight; }
+window.addEventListener('resize', resize);
+
+let mode = 'select';
+let selection = null;  // {type:'vertex'|'edge', id}
+let dragging = null;   // {type:'vertex'|'mid', id} en cours de glisser-déposer
+let edgeStart = null;  // vertex id when placing an edge
+let relaxing = false;
+let showKnot = false;  // affichage de l'entrelacs (brins) en surimpression
+let editTangents = false; // affiche/permet l'édition des poignées de tangente
+
+// ---------- utilitaires géométrie ----------
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function angleAt(v, other){ return Math.atan2(other.y-v.y, other.x-v.x); }
+function otherEnd(edge, vId){ return edge.v1===vId ? edge.v2 : edge.v1; }
+function normAngle(a){ a = a % (2*Math.PI); if (a<0) a += 2*Math.PI; return a; }
+function midpoint(A,B){ return {x:(A.x+B.x)/2, y:(A.y+B.y)/2}; }
+
+// cercle circonscrit à trois points ; null si (quasi) alignés → segment
+function circumcircle(A,M,B){
+  const ax=A.x, ay=A.y, bx=M.x, by=M.y, cx=B.x, cy=B.y;
+  const d = 2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+  if (Math.abs(d) < 1e-6) return null;
+  const ux = ((ax*ax+ay*ay)*(by-cy) + (bx*bx+by*by)*(cy-ay) + (cx*cx+cy*cy)*(ay-by)) / d;
+  const uy = ((ax*ax+ay*ay)*(cx-bx) + (bx*bx+by*by)*(ax-cx) + (cx*cx+cy*cy)*(bx-ax)) / d;
+  const r = Math.hypot(ax-ux, ay-uy);
+  if (r > 6000) return null; // rayon énorme = quasiment rectiligne
+  return {cx:ux, cy:uy, r};
+}
+
+// paramètres de l'arc allant de A à B en passant par M (sens correct choisi)
+function arcThrough(A,M,B){
+  const c = circumcircle(A,M,B);
+  if (!c) return null;
+  const a0 = normAngle(Math.atan2(A.y-c.cy, A.x-c.cx));
+  const a1 = normAngle(Math.atan2(B.y-c.cy, B.x-c.cx));
+  const am = normAngle(Math.atan2(M.y-c.cy, M.x-c.cx));
+  const fwd  = normAngle(a1-a0);   // balayage en angle croissant de a0 vers a1
+  const mFwd = normAngle(am-a0);
+  const forwardHasM = mFwd <= fwd + 1e-9;
+  return { cx:c.cx, cy:c.cy, r:c.r, a0, a1, ccw: !forwardHasM };
+}
+// échantillonne l'arc (ou le segment) en N points, pour rendu approché / tests
+function sampleEdgeCurve(edge, N){
+  N = N||14;
+  const A = vertices[edge.v1], B = vertices[edge.v2];
+  const arc = arcThrough(A, edge.mid, B);
+  if (!arc) return [A, B];
+  const sweep = arc.ccw ? (normAngle(arc.a1-arc.a0) - 2*Math.PI) : normAngle(arc.a1-arc.a0);
+  const pts = [];
+  for (let i=0;i<=N;i++){
+    const t = i/N, ang = arc.a0 + sweep*t;
+    pts.push({x:arc.cx+arc.r*Math.cos(ang), y:arc.cy+arc.r*Math.sin(ang)});
+  }
+  return pts;
+}
+// cercle porteur d'une boucle (v1===v2) : A et mid sont diamétralement opposés
+function loopCircle(edge){
+  const A = vertices[edge.v1];
+  const cx=(A.x+edge.mid.x)/2, cy=(A.y+edge.mid.y)/2;
+  const r = Math.max(6, dist(A, edge.mid)/2);
+  return {cx,cy,r};
+}
+
+// ---------- brins (« darts ») : chaque arête a deux bouts identifiables,
+// 'a' (côté v1) et 'b' (côté v2) — indispensable pour le graphe médial,
+// notamment pour distinguer les deux bouts d'une boucle (v1===v2).
+function dartStr(eid,end){ return eid+':'+end; }
+function parseDart(s){ const i=s.lastIndexOf(':'); return {eid:s.slice(0,i), end:s.slice(i+1)}; }
+function rotate90(v){ return {x:-v.y, y:v.x}; }
+function rotateM90(v){ return {x:v.y, y:-v.x}; }
+
+// angle de départ exact (tangent à l'arc) d'un brin, utilisé pour trier
+// l'ordre trigonométrique autour d'un sommet — y compris pour les deux
+// bouts d'une boucle, qui partent en sens tangents opposés.
+function dartAngle(eid,end){
+  const e = edges[eid];
+  if (e.v1 === e.v2){
+    const A = vertices[e.v1];
+    const c = loopCircle(e);
+    const t = rotate90({x:A.x-c.cx, y:A.y-c.cy});
+    const ang = Math.atan2(t.y,t.x);
+    return end==='a' ? ang : ang+Math.PI;
+  }
+  const A = vertices[e.v1], B = vertices[e.v2];
+  const arc = arcThrough(A, e.mid, B);
+  if (!arc){
+    return end==='a' ? Math.atan2(B.y-A.y,B.x-A.x) : Math.atan2(A.y-B.y,A.x-B.x);
+  }
+  const c = {x:arc.cx,y:arc.cy};
+  const dirAB = arc.ccw ? -1 : 1; // sens de parcours A->B le long de l'arc
+  if (end==='a'){
+    const r = {x:A.x-c.x,y:A.y-c.y};
+    const t = dirAB===1 ? rotate90(r) : rotateM90(r);
+    return Math.atan2(t.y,t.x);
+  }
+  const r = {x:B.x-c.x,y:B.y-c.y};
+  const tArr = dirAB===1 ? rotate90(r) : rotateM90(r); // tangente d'arrivée en B
+  return Math.atan2(-tArr.y,-tArr.x); // départ = sens opposé à l'arrivée
+}
+
+// recalcule l'ordre trigonométrique des brins autour de chaque sommet
+// (préserve la topologie, ajuste la rotation system quand la géométrie a
+// suffisamment changé).
+function recomputeOrder(vId){
+  const v = vertices[vId];
+  v.order.sort((sA, sB) => {
+    const a = parseDart(sA), b = parseDart(sB);
+    return dartAngle(a.eid,a.end) - dartAngle(b.eid,b.end);
+  });
+}
+function recomputeAllOrders(){ for (const id in vertices) recomputeOrder(id); }
+// reconstruit entièrement order à partir des arêtes (utile après chargement)
+function rebuildAllDarts(){
+  for (const id in vertices) vertices[id].order = [];
+  for (const id in edges){
+    const e = edges[id];
+    vertices[e.v1].order.push(dartStr(id,'a'));
+    vertices[e.v2].order.push(dartStr(id,'b'));
+  }
+  recomputeAllOrders();
+}
+
+// ---------- création / suppression ----------
+function addVertex(x,y){
+  const id = 'v'+(nextVId++);
+  vertices[id] = { id, x, y, friction: 1, order: [] };
+  return id;
+}
+// initialise le point milieu : rectiligne par défaut, décalé si multi-arête
+function initEdgeMid(edge){
+  const A = vertices[edge.v1], B = vertices[edge.v2];
+  if (edge.v1 === edge.v2){
+    edge.mid = { x:A.x, y:A.y-50 }; // apex de la boucle, au-dessus du sommet
+    return;
+  }
+  const sibs = Object.values(edges).filter(o=>o!==edge &&
+    ((o.v1===edge.v1&&o.v2===edge.v2)||(o.v1===edge.v2&&o.v2===edge.v1)));
+  const k = sibs.length; // 0 = pas de sœur, alors rectiligne
+  if (k===0){ edge.mid = midpoint(A,B); return; }
+  const dx=B.x-A.x, dy=B.y-A.y, d=Math.hypot(dx,dy)||1;
+  const nx=-dy/d, ny=dx/d;
+  const offsetIdx = Math.ceil((k+1)/2) * (k%2===1? 1:-1);
+  const offset = offsetIdx*18;
+  const m = midpoint(A,B);
+  edge.mid = { x:m.x+nx*offset, y:m.y+ny*offset };
+}
+function addEdge(v1, v2){
+  const id = 'e'+(nextEId++);
+  const restLength = Math.max(30, dist(vertices[v1], vertices[v2]) || 80);
+  const edge = { id, v1, v2, stiffness: 1, restLength, mid:null, priority:'right' };
+  edges[id] = edge;
+  initEdgeMid(edge); // mid doit exister avant le tri angulaire (tangente exacte)
+  vertices[v1].order.push(dartStr(id,'a'));
+  vertices[v2].order.push(dartStr(id,'b')); // si v1===v2 (boucle), deux brins distincts dans le même sommet
+  recomputeOrder(v1); recomputeOrder(v2);
+  return id;
+}
+function removeVertex(id){
+  for (const s of [...vertices[id].order]) removeEdge(parseDart(s).eid);
+  delete vertices[id];
+}
+function removeEdge(id){
+  const e = edges[id];
+  if (!e) return;
+  vertices[e.v1].order = vertices[e.v1].order.filter(s=>parseDart(s).eid!==id);
+  if (vertices[e.v2]) vertices[e.v2].order = vertices[e.v2].order.filter(s=>parseDart(s).eid!==id);
+  delete edges[id];
+}
+
+// segments A-mid et mid-B : approximation de contrôle utilisée pour la
+// détection de croisement (bien moins coûteuse qu'un test arc-arc exact,
+// et suffisante puisque c'est justement `mid` qui absorbe la correction).
+function chordSegments(edge){
+  const A = vertices[edge.v1], B = vertices[edge.v2];
+  return [A, edge.mid, B];
+}
+function segIntersect(p1,p2,p3,p4){
+  const d1x=p2.x-p1.x, d1y=p2.y-p1.y, d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+  const denom = d1x*d2y - d1y*d2x;
+  if (Math.abs(denom) < 1e-9) return false;
+  const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x)/denom;
+  const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x)/denom;
+  return (t>0.03 && t<0.97 && u>0.03 && u<0.97);
+}
+
+// ---------- relaxation ----------
+function step(dt){
+  const gStiff      = parseFloat(document.getElementById('gStiff').value);
+  const gRepel      = parseFloat(document.getElementById('gRepel').value);
+  const minAngle    = parseFloat(document.getElementById('gMinAngle').value) * Math.PI/180;
+  const gCurveRepel = parseFloat(document.getElementById('gCurveRepel').value);
+  const gCurvature  = parseFloat(document.getElementById('gCurvature').value);
+  const gUncross    = parseFloat(document.getElementById('gUncross').value);
+
+  const vf = {}; for (const id in vertices) vf[id] = {x:0,y:0};   // forces sur sommets
+  const mf = {}; for (const id in edges)    mf[id] = {x:0,y:0};   // forces sur points milieux
+
+  // 1) ressort de corde (longueur à vide) + rappel du point milieu vers le
+  //    segment rectiligne (tendance "courbure nulle" par défaut)
+  for (const id in edges){
+    const e = edges[id];
+    const A = vertices[e.v1], B = vertices[e.v2];
+    if (e.v1 === e.v2){
+      // boucle : ressort radial vers un rayon par défaut
+      const dx=e.mid.x-A.x, dy=e.mid.y-A.y, d=Math.hypot(dx,dy)||1;
+      const f = gCurvature*(50-d);
+      mf[id].x += (dx/d)*f; mf[id].y += (dy/d)*f;
+      continue;
+    }
+    const dx=B.x-A.x, dy=B.y-A.y, d=Math.hypot(dx,dy)||0.001;
+    const f = gStiff*e.stiffness*(d-e.restLength);
+    const ux=dx/d, uy=dy/d;
+    vf[A.id].x += ux*f; vf[A.id].y += uy*f;
+    vf[B.id].x -= ux*f; vf[B.id].y -= uy*f;
+
+    const m = midpoint(A,B);
+    mf[id].x += (m.x-e.mid.x)*gCurvature;
+    mf[id].y += (m.y-e.mid.y)*gCurvature;
+  }
+
+  // 2) répulsion entre tous les sommets (évite les recouvrements)
+  const ids = Object.keys(vertices);
+  for (let i=0;i<ids.length;i++){
+    for (let j=i+1;j<ids.length;j++){
+      const A=vertices[ids[i]], B=vertices[ids[j]];
+      let dx=A.x-B.x, dy=A.y-B.y, d2=dx*dx+dy*dy; if (d2<1) d2=1;
+      const d=Math.sqrt(d2), f=gRepel/d2, ux=dx/d, uy=dy/d;
+      vf[A.id].x += ux*f; vf[A.id].y += uy*f;
+      vf[B.id].x -= ux*f; vf[B.id].y -= uy*f;
+    }
+  }
+
+  // 3) écartement angulaire autour de chaque sommet (respecte l'ordre)
+  for (const id in vertices){
+    const v = vertices[id];
+    const n = v.order.length;
+    if (n < 2) continue;
+    for (let k=0;k<n;k++){
+      const e1 = edges[parseDart(v.order[k]).eid], e2 = edges[parseDart(v.order[(k+1)%n]).eid];
+      const o1 = vertices[otherEnd(e1,id)], o2 = vertices[otherEnd(e2,id)];
+      let a1=angleAt(v,o1), a2=angleAt(v,o2);
+      let da=a2-a1; while(da<0) da+=2*Math.PI; while(da>2*Math.PI) da-=2*Math.PI;
+      if (n===2) da = Math.min(da, 2*Math.PI-da);
+      if (da < minAngle && da > 1e-4){
+        const tang = (minAngle-da)*40;
+        const p1x=-Math.sin(a1), p1y=Math.cos(a1);
+        const p2x=-Math.sin(a2), p2y=Math.cos(a2);
+        vf[o1.id].x -= p1x*tang; vf[o1.id].y -= p1y*tang;
+        vf[o2.id].x += p2x*tang; vf[o2.id].y += p2y*tang;
+      }
+    }
+  }
+
+  // 4) répulsion des points milieux contre les sommets étrangers et les
+  //    autres points milieux — c'est ce qui fait "bomber" un arc à l'écart
+  //    d'un obstacle plutôt que de le traverser en ligne droite
+  const midList = Object.values(edges).map(e=>({e, ref:mf[e.id]}));
+  for (const {e, ref} of midList){
+    for (const vid in vertices){
+      if (vid===e.v1 || vid===e.v2) continue;
+      const V = vertices[vid];
+      let dx=e.mid.x-V.x, dy=e.mid.y-V.y, d2=dx*dx+dy*dy; if (d2<1) d2=1;
+      const d=Math.sqrt(d2), f=gCurveRepel/d2, ux=dx/d, uy=dy/d;
+      ref.x += ux*f; ref.y += uy*f;
+      vf[vid].x -= ux*f; vf[vid].y -= uy*f;
+    }
+  }
+  for (let i=0;i<midList.length;i++){
+    for (let j=i+1;j<midList.length;j++){
+      const A=midList[i], B=midList[j];
+      let dx=A.e.mid.x-B.e.mid.x, dy=A.e.mid.y-B.e.mid.y, d2=dx*dx+dy*dy; if(d2<1)d2=1;
+      const d=Math.sqrt(d2), f=gCurveRepel/d2, ux=dx/d, uy=dy/d;
+      A.ref.x += ux*f; A.ref.y += uy*f;
+      B.ref.x -= ux*f; B.ref.y -= uy*f;
+    }
+  }
+
+  // 5) anti-croisement explicite : deux arêtes ne partageant aucun sommet
+  //    dont les cordes (A-mid, mid-B) se coupent sont écartées perpendicu-
+  //    lairement, ce qui pousse `mid` (et un peu les sommets) à faire
+  //    dévier l'arc plutôt que de laisser le croisement en place.
+  const nonLoop = Object.values(edges).filter(e=>e.v1!==e.v2);
+  for (let i=0;i<nonLoop.length;i++){
+    for (let j=i+1;j<nonLoop.length;j++){
+      const e1=nonLoop[i], e2=nonLoop[j];
+      if (e1.v1===e2.v1||e1.v1===e2.v2||e1.v2===e2.v1||e1.v2===e2.v2) continue;
+      const P1=chordSegments(e1), P2=chordSegments(e2);
+      for (let a=0;a<2;a++){
+        for (let b=0;b<2;b++){
+          if (!segIntersect(P1[a],P1[a+1],P2[b],P2[b+1])) continue;
+          const m1x=(P1[a].x+P1[a+1].x)/2, m1y=(P1[a].y+P1[a+1].y)/2;
+          const m2x=(P2[b].x+P2[b+1].x)/2, m2y=(P2[b].y+P2[b+1].y)/2;
+          let dx=m1x-m2x, dy=m1y-m2y, d=Math.hypot(dx,dy)||0.001;
+          const ux=dx/d, uy=dy/d, push=gUncross;
+          const r1 = (a===0)? mf[e1.id] : mf[e1.id]; // les deux segments touchent mid
+          const r2 = (b===0)? mf[e2.id] : mf[e2.id];
+          r1.x += ux*push; r1.y += uy*push;
+          r2.x -= ux*push; r2.y -= uy*push;
+          // et un peu sur les sommets concernés, pour ne pas tout reporter sur mid
+          const v1r = (a===0)? vf[e1.v1] : vf[e1.v2];
+          const v2r = (b===0)? vf[e2.v1] : vf[e2.v2];
+          v1r.x += ux*push*0.3; v1r.y += uy*push*0.3;
+          v2r.x -= ux*push*0.3; v2r.y -= uy*push*0.3;
+        }
+      }
+    }
+  }
+
+  // intégration — sommets (friction Infinity = ancré, fixe)
+  for (const id in vertices){
+    const v = vertices[id];
+    if (v.friction === Infinity) continue;
+    const damp = 1/(1+v.friction);
+    v.x += vf[id].x*dt*damp;
+    v.y += vf[id].y*dt*damp;
+  }
+  // intégration — points milieux (amortissement fixe, sauf glisser-déposer en cours)
+  for (const id in edges){
+    if (dragging && dragging.type==='mid' && dragging.id===id) continue;
+    const damp = 1/(1+1.4);
+    edges[id].mid.x += mf[id].x*dt*damp;
+    edges[id].mid.y += mf[id].y*dt*damp;
+  }
+}
+
+function relaxLoop(){
+  if (!relaxing) return;
+  for (let i=0;i<3;i++) step(0.06);
+  if (Math.random()<0.05) recomputeAllOrders(); // rafraîchit périodiquement la rotation system
+  draw();
+  requestAnimationFrame(relaxLoop);
+}
+
+/* ---------------------------------------------------------------------
+   GRAPHE MÉDIAL ET BRINS
+   Chaque arête e=(v,v') de G porte un croisement en son milieu (e.mid).
+   Ce croisement a 4 "loges" : (bout='a'|'b', rôle='prev'|'next') — 'a' est
+   le bout côté v (=e.v1), 'b' le bout côté v'(=e.v2) ; 'prev'/'next'
+   réfèrent au brin voisin dans l'ordre trigonométrique du sommet porté
+   par ce bout (le prédécesseur p ou le successeur s de l'énoncé).
+
+   Deux façons de relier les loges entre elles :
+   - lien de CROISEMENT (au sein d'une même arête) : la loge (a,rôle) se
+     prolonge en (b, même rôle) — "prev" avec "prev", "next" avec "next" —
+     c'est la règle donnée : (p,v)-(v,v') se prolonge en (p',v')-(v,v').
+   - lien de PORTION (entre deux arêtes voisines autour d'un sommet) :
+     la loge (dart, 'next') se prolonge, via le brin suivant autour du
+     sommet porté par `dart`, vers la loge (brin suivant, 'prev') — et
+     réciproquement pour 'prev'.
+   Ces deux liens sont chacun des involutions ; les composer en alternance
+   décompose l'ensemble des loges en cycles disjoints = les brins complets
+   de l'entrelacs (technique standard de décomposition d'une carte
+   combinatoire en faces/brins).
+--------------------------------------------------------------------- */
+function slotKey(s){ return s.eid+':'+s.end+':'+s.role; }
+function crossingPartnerSlot(s){ return {eid:s.eid, end:s.end==='a'?'b':'a', role:s.role}; }
+function neighborDartAt(eid,end,dir){ // dir=+1 (suivant) ou -1 (précédent)
+  const vId = end==='a' ? edges[eid].v1 : edges[eid].v2;
+  const order = vertices[vId].order;
+  const idx = order.indexOf(dartStr(eid,end));
+  const n = order.length;
+  return parseDart(order[(idx + dir + n) % n]);
+}
+function portionNeighborSlot(s){
+  const d = s.role==='next' ? neighborDartAt(s.eid,s.end,+1) : neighborDartAt(s.eid,s.end,-1);
+  return { eid:d.eid, end:d.end, role: s.role==='next' ? 'prev' : 'next' };
+}
+function hingeVertexOf(s){ return s.end==='a' ? edges[s.eid].v1 : edges[s.eid].v2; }
+
+// décompose l'entrelacs en brins fermés. Chaque brin est une liste de
+// "portions" {hingeV, from:{eid,end,role}, to:{eid,end,role}} — une portion
+// est un segment de courbe dessiné entre deux croisements voisins, en
+// contournant le sommet `hingeV` de G.
+function traceStrands(){
+  const visited = new Set();
+  const allSlots = [];
+  for (const eid in edges) for (const end of ['a','b']) for (const role of ['prev','next'])
+    allSlots.push({eid,end,role});
+  const strands = [];
+  for (const s0 of allSlots){
+    if (visited.has(slotKey(s0))) continue;
+    const portions = [];
+    let cur = s0, useCrossing = true, guard = 0;
+    do {
+      const nxt = useCrossing ? crossingPartnerSlot(cur) : portionNeighborSlot(cur);
+      if (!useCrossing) portions.push({ hingeV: hingeVertexOf(cur), from: cur, to: nxt });
+      visited.add(slotKey(cur));
+      cur = nxt; useCrossing = !useCrossing;
+      guard++;
+    } while (!(cur.eid===s0.eid && cur.end===s0.end && cur.role===s0.role) && guard < 20000);
+    if (portions.length) strands.push(portions);
+  }
+  return strands;
+}
+// le brin de rôle 'prev' est au-dessus par défaut ("priorité à droite") ;
+// clic droit sur un croisement en vue Entrelacs inverse ce choix localement.
+function isUnder(eid, role){
+  const topRole = edges[eid].priority==='right' ? 'prev' : 'next';
+  return role !== topRole;
+}
+
+/* ---------------------------------------------------------------------
+   INVARIANTS D'ENTRELACS
+   On part du graphe planaire signé : chaque arête (croisement) est signée
+   par sa priorité ("droite" = brin 'prev' dessus, "gauche" = 'next'
+   dessus). On calcule directement sur les loges/brins déjà construits :
+   - graphe de Seifert (résolution orientée à chaque croisement) -> cercles
+     de Seifert -> genre ;
+   - signe de chaque croisement (produit vectoriel des tangentes dessus /
+     dessous) -> writhe, nombres d'enlacement entre composantes ;
+   - somme d'états de Kauffman (les deux résolutions A/B à chaque
+     croisement, indépendantes du dessus-dessous) -> crochet -> polynôme
+     de Jones normalisé par le writhe.
+   Alexander et HOMFLY demandent une autre machinerie (matrice de Seifert,
+   récursion par relation d'écheveau) : pas encore implémentés ici.
+--------------------------------------------------------------------- */
+function buildPortionLookups(strands){
+  const fromPortion = {}, toPortion = {};
+  for (const portions of strands) for (const p of portions){
+    fromPortion[p.from.eid+':'+p.from.role] = p;
+    toPortion[p.to.eid+':'+p.to.role] = p;
+  }
+  return { fromPortion, toPortion };
+}
+function ufFind(parent,x){ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
+function ufUnion(parent,a,b){ const ra=ufFind(parent,a), rb=ufFind(parent,b); if (ra!==rb) parent[ra]=rb; }
+
+// résolution orientée (Seifert) d'un croisement : les 4 loges triées par
+// angle ont chacune un statut "sort" (départ réel du brin) ou "entre"
+// (arrivée) ; on relie chaque loge "sort" à celle de ses deux voisines
+// angulaires qui est "entre" (l'autre voisine appartient nécessairement
+// au même brin qu'elle, donc n'est jamais un partenaire valide).
+function seifertPairs(eid, lookups){
+  const rays = [];
+  for (const role of ['prev','next']) for (const end of ['a','b']){
+    const fp = lookups.fromPortion[eid+':'+role];
+    rays.push({ end, role, angle: normAngle(departureDir(eid,end,role)), out: !!(fp && fp.from.end===end) });
+  }
+  rays.sort((a,b)=>a.angle-b.angle);
+  const pairs = [], used=[false,false,false,false];
+  for (let i=0;i<4;i++){
+    if (rays[i].out && !used[i]){
+      const jN=(i+1)%4, jP=(i+3)%4;
+      const j = !rays[jN].out ? jN : jP;
+      pairs.push([rays[i], rays[j]]);
+      used[i]=true; used[j]=true;
+    }
+  }
+  return pairs;
+}
+
+function computeInvariants(){
+  const edgeIds = Object.keys(edges);
+  const n = edgeIds.length;
+  if (n===0) return null;
+  const strands = traceStrands();
+  const lookups = buildPortionLookups(strands);
+  const mu = strands.length;
+
+  const idxOf = {}; let k=0;
+  for (const eid of edgeIds) for (const end of ['a','b']) for (const role of ['prev','next']) idxOf[eid+':'+end+':'+role]=k++;
+  const NS = 4*n;
+
+  // liens de portion (fixes, indépendants de l'état)
+  const portionLinks = [];
+  const doneP = new Set();
+  for (const eid of edgeIds) for (const end of ['a','b']) for (const role of ['prev','next']){
+    const key = eid+':'+end+':'+role;
+    if (doneP.has(key)) continue;
+    const nb = portionNeighborSlot({eid,end,role});
+    const nkey = nb.eid+':'+nb.end+':'+nb.role;
+    doneP.add(key); doneP.add(nkey);
+    portionLinks.push([idxOf[key], idxOf[nkey]]);
+  }
+  function countLoops(extraLinks){
+    const parent = new Array(NS);
+    for (let i=0;i<NS;i++) parent[i]=i;
+    for (const [a,b] of portionLinks) ufUnion(parent,a,b);
+    for (const [a,b] of extraLinks) ufUnion(parent,a,b);
+    const roots = new Set();
+    for (let i=0;i<NS;i++) roots.add(ufFind(parent,i));
+    return roots.size;
+  }
+
+  // --- graphe de Seifert : cercles, genre ---
+  const seifertLinks = [];
+  for (const eid of edgeIds) for (const [r1,r2] of seifertPairs(eid, lookups))
+    seifertLinks.push([idxOf[eid+':'+r1.end+':'+r1.role], idxOf[eid+':'+r2.end+':'+r2.role]]);
+  const seifertLoops = countLoops(seifertLinks);
+  const genus = (n - seifertLoops + 2 - mu) / 2;
+
+  // --- signes des croisements, writhe, enlacements ---
+  function exitEnd(eid,role){ return lookups.fromPortion[eid+':'+role].from.end; }
+  function travelAngle(eid,role){ return departureDir(eid, exitEnd(eid,role), role); }
+  const roleStrand = {};
+  strands.forEach((portions,si)=>{ for (const p of portions){
+    roleStrand[p.from.eid+':'+p.from.role]=si; roleStrand[p.to.eid+':'+p.to.role]=si;
+  }});
+  let writhe = 0;
+  const linking = {};
+  const overRoleOf = {};
+  for (const eid of edgeIds){
+    const overRole = edges[eid].priority==='right' ? 'prev':'next', underRole = overRole==='prev'?'next':'prev';
+    overRoleOf[eid]=overRole;
+    const oA=travelAngle(eid,overRole), uA=travelAngle(eid,underRole);
+    const sgn = (Math.cos(oA)*Math.sin(uA) - Math.sin(oA)*Math.cos(uA)) >= 0 ? -1 : 1;
+    writhe += sgn;
+    const si=roleStrand[eid+':'+overRole], sj=roleStrand[eid+':'+underRole];
+    if (si!==sj){ const key = si<sj? si+'-'+sj : sj+'-'+si; linking[key]=(linking[key]||0)+sgn; }
+  }
+  for (const key in linking) linking[key] /= 2;
+
+  const result = { n, mu, genus, writhe, linking, seifertLoops };
+  if (n > 20){ result.tooManyCrossings = true; return result; }
+
+  // --- crochet de Kauffman : somme sur les 2^n états A/B (indépendant du
+  //     dessus-dessous, seule la géométrie des rayons compte) ---
+  const raysOf = {};
+  for (const eid of edgeIds){
+    const overRole = overRoleOf[eid];
+    const rays=[];
+    for (const role of ['prev','next']) for (const end of ['a','b'])
+      rays.push({end,role,angle:normAngle(departureDir(eid,end,role)), isOver: role===overRole});
+    rays.sort((a,b)=>a.angle-b.angle);
+    raysOf[eid]=rays;
+  }
+  function smoothingLinks(eid, isB){
+    const rays = raysOf[eid], links=[];
+    for (let i=0;i<4;i++) if (rays[i].isOver){
+      const j = isB ? (i+3)%4 : (i+1)%4;
+      links.push([idxOf[eid+':'+rays[i].end+':'+rays[i].role], idxOf[eid+':'+rays[j].end+':'+rays[j].role]]);
+    }
+    return links;
+  }
+  function addP(target,exp,coef){ target[exp]=(target[exp]||0)+coef; }
+  const bracket = {};
+  for (let state=0; state<(1<<n); state++){
+    let nB=0; const links=[];
+    for (let i=0;i<n;i++){ const isB=(state>>i)&1; if (isB) nB++; links.push(...smoothingLinks(edgeIds[i],!!isB)); }
+    const loops = countLoops(links), nA = n-nB;
+    let dpow = {0:1};
+    for (let t=0;t<loops-1;t++){
+      const next={};
+      for (const e in dpow){ addP(next,+e+2,-dpow[e]); addP(next,+e-2,-dpow[e]); }
+      dpow = next;
+    }
+    for (const e in dpow) addP(bracket, +e+(nA-nB), dpow[e]);
+  }
+
+  // --- polynôme de Jones : f(A)=(-A)^{-3w}<L>, puis substitution t=A^-4 ---
+  const f = {};
+  const wsign = (((3*writhe)%2)+2)%2===0 ? 1 : -1;
+  for (const e in bracket) addP(f, +e-3*writhe, wsign*bracket[e]);
+  const jones = {};
+  let jonesFractional = false;
+  for (const e in f){ const kk=+e; if (kk%4!==0) jonesFractional=true; addP(jones, -kk/4, f[e]); }
+
+  result.bracket = bracket; result.jones = jones; result.jonesFractional = jonesFractional;
+  return result;
+}
+
+function formatLaurent(poly, varName){
+  const exps = Object.keys(poly).map(Number).sort((a,b)=>b-a);
+  if (!exps.length) return '0';
+  return exps.map(e=>{
+    const c = poly[e];
+    if (Math.abs(c) < 1e-9) return null;
+    const cAbs = Math.abs(Math.round(c*1000)/1000);
+    const sign = c<0 ? ' - ' : ' + ';
+    let term = (e===0) ? String(cAbs) : (cAbs===1? varName : cAbs+varName) + (e===1?'':('^'+e));
+    return {sign, term};
+  }).filter(Boolean).map((t,i)=> i===0 ? (t.sign.trim()==='-'?'-':'')+t.term : t.sign+t.term).join('');
+}
+const STRAND_PALETTE = ['#c9524a','#3f7fb0','#3f9e6d','#c98a2e','#8a63c9','#c95fa0','#5aa6a6','#a3a13a'];
+
+/* ---------------------------------------------------------------------
+   TANGENTES ÉDITABLES (comme des poignées de courbe de Bézier)
+   Chaque brin, entre un croisement et le suivant, est fait de DEUX
+   segments cubiques : croisement e1 -> point milieu m -> croisement e2.
+
+   Au CROISEMENT (milieu d'arête) : les deux demi-tangentes qui s'y
+   rejoignent (celle du brin vers p, celle vers p') sont forcées égales
+   (une seule droite tangente) — on stocke donc un seul angle par
+   (arête, rôle), partagé par les deux portions qui touchent ce croisement
+   de ce côté-là. Valeur initiale = θ, moyenne des fonctions f(angle) aux
+   deux bouts, mesurée par rapport à la tangente LOCALE de l'arête (pas la
+   corde) à cet endroit précis, puisque l'arête peut être courbe.
+
+   Au POINT MILIEU m d'un brin : « oreille d'ours » (rond, une seule
+   tangente = moyenne des deux droites aux croisements voisins) par défaut,
+   ou « oreille de chat » (pointu, chaque demi-tangente parallèle à
+   l'arête dont elle provient) ; les deux peuvent aussi être ajustées à la
+   main ('custom'), auquel cas elles sont mémorisées telles quelles.
+--------------------------------------------------------------------- */
+function thetaFuncDeg(deg){
+  if (deg<=60) return 60;
+  if (deg<=90) return 60 + (deg-60)*(45-60)/(90-60);
+  if (deg<=120) return 45 + (deg-90)*(30-45)/(120-90);
+  if (deg<=180) return 30 + (deg-120)*(45-30)/(180-120);
+  return 45;
+}
+// angle du coin (voisin,v,cetteArête) en degrés, entre le brin (eid,end)
+// et son voisin cyclique dans la direction dir (+1 suivant, -1 précédent)
+function cornerAngleDeg(eid,end,dir){
+  const nb = neighborDartAt(eid,end,dir);
+  const a0 = dartAngle(eid,end), a1 = dartAngle(nb.eid,nb.end);
+  const deg = dir>0 ? normAngle(a1-a0)*180/Math.PI : normAngle(a0-a1)*180/Math.PI;
+  return deg;
+}
+function defaultThetaDeg(eid, role){
+  const dir = role==='next' ? 1 : -1;
+  const dA = cornerAngleDeg(eid,'a',dir), dB = cornerAngleDeg(eid,'b',dir);
+  return (thetaFuncDeg(dA)+thetaFuncDeg(dB))/2;
+}
+// tangente locale (radians, sens v1->v2) de l'arête, prise à SON PROPRE
+// point milieu — c'est la référence par rapport à laquelle θ est mesuré,
+// et c'est aussi la direction utilisée par l'« oreille de chat ».
+function edgeMidTangentAngle(eid){
+  const e = edges[eid];
+  if (e.v1===e.v2){
+    const A = vertices[e.v1], c = loopCircle(e);
+    const t = rotate90({x:e.mid.x-c.cx, y:e.mid.y-c.cy});
+    return Math.atan2(t.y,t.x);
+  }
+  const A = vertices[e.v1], B = vertices[e.v2];
+  const arc = arcThrough(A, e.mid, B);
+  if (!arc) return Math.atan2(B.y-A.y, B.x-A.x);
+  const c = {x:arc.cx,y:arc.cy};
+  const dirAB = arc.ccw ? -1 : 1;
+  const r = {x:e.mid.x-c.x, y:e.mid.y-c.y};
+  const t = dirAB===1 ? rotate90(r) : rotateM90(r);
+  return Math.atan2(t.y,t.x);
+}
+function orientTowards(angle, refx, refy){
+  const vx=Math.cos(angle), vy=Math.sin(angle);
+  return (vx*refx+vy*refy>=0) ? angle : angle+Math.PI;
+}
+// moyenne de deux droites (angles définis modulo π, pas modulo 2π)
+function averageLineAngle(a1,a2){
+  const x=Math.cos(2*a1)+Math.cos(2*a2), y=Math.sin(2*a1)+Math.sin(2*a2);
+  return Math.atan2(y,x)/2;
+}
+
+let crossState = {}; // clé "eid:role" -> {angle, lenA, lenB}
+
+function getCrossState(eid, role){
+  const key = eid+':'+role;
+  if (!crossState[key]){
+    const thetaRad = defaultThetaDeg(eid,role)*Math.PI/180;
+    const sign = role==='prev' ? 1 : -1;
+    crossState[key] = { angle: edgeMidTangentAngle(eid) + sign*thetaRad, lenA: 34, lenB: 34 };
+  }
+  return crossState[key];
+}
+// direction (radians) de la demi-tangente quittant le croisement `eid`
+// côté `end`, vers la portion de brin de rôle `role`
+function departureDir(eid, end, role){
+  const cs = getCrossState(eid, role);
+  return end==='b' ? cs.angle : cs.angle+Math.PI;
+}
+function handleLenAt(eid, role, end){
+  const cs = getCrossState(eid, role);
+  return end==='b' ? cs.lenB : cs.lenA;
+}
+function cubicPoint(P0,C0,C1,P1,t){
+  const u=1-t;
+  return {
+    x: u*u*u*P0.x + 3*u*u*t*C0.x + 3*u*t*t*C1.x + t*t*t*P1.x,
+    y: u*u*u*P0.y + 3*u*u*t*C0.y + 3*u*t*t*C1.y + t*t*t*P1.y
+  };
+}
+function lerp(A,B,t){ return {x:A.x+(B.x-A.x)*t, y:A.y+(B.y-A.y)*t}; }
+// subdivision exacte (De Casteljau) : renvoie les deux moitiés [0,t] et
+// [t,1] d'une cubique, chacune comme 4 points de contrôle exacts —
+// utile pour extraire, sans échantillonnage, le petit bout de courbe
+// vraiment exact près d'un croisement (export SVG notamment).
+function splitCubic(P0,C0,C1,P1,t){
+  const A=lerp(P0,C0,t), B=lerp(C0,C1,t), C=lerp(C1,P1,t);
+  const D=lerp(A,B,t), E=lerp(B,C,t);
+  const F=lerp(D,E,t);
+  return { left:[P0,A,D,F], right:[F,E,C,P1] };
+}
+// points de contrôle bruts (croisement -> croisement) d'une portion de
+// brin, sans échantillonnage — la même géométrie sert au tracé canvas et
+// à l'export SVG (chemin vectoriel exact).
+function portionBezier(p){
+  const e1=p.from.eid, end1=p.from.end, role1=p.from.role;
+  const e2=p.to.eid,   end2=p.to.end,   role2=p.to.role;
+  const P0 = edges[e1].mid, P1 = edges[e2].mid;
+  const dir0 = departureDir(e1, end1, role1), len0 = handleLenAt(e1, role1, end1);
+  const dir1 = departureDir(e2, end2, role2), len1 = handleLenAt(e2, role2, end2);
+  const C0 = { x:P0.x+Math.cos(dir0)*len0, y:P0.y+Math.sin(dir0)*len0 };
+  const C1 = { x:P1.x+Math.cos(dir1)*len1, y:P1.y+Math.sin(dir1)*len1 };
+  return { P0, C0, C1, P1 };
+}
+
+// ---------- rendu ----------
+// échantillonne une portion de brin comme UNE SEULE courbe de Bézier
+// cubique allant directement d'un croisement (milieu d'arête) au suivant :
+// degré volontairement bas, seuls les deux points de contrôle aux
+// extrémités comptent, donnés par les tangentes θ calculées là-bas
+// (30°–60° avec l'arête qui porte le croisement). Pas de point milieu de
+// brin pour l'instant — on pourra le réintroduire plus tard si besoin.
+function samplePortion(p){
+  const { P0, C0, C1, P1 } = portionBezier(p);
+
+  const N = 16, pts = [];
+  for (let i=0;i<=N;i++){ const t = i/N; pts.push(cubicPoint(P0,C0,C1,P1,t)); }
+  return { pts, C0, C1 };
+}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.lineCap='round';
+
+  // --- graphe support : discret quand l'entrelacs est affiché ---
+  for (const id in edges){
+    const e = edges[id];
+    const sel = selection && selection.type==='edge' && selection.id===id;
+    ctx.strokeStyle = showKnot ? '#2a3140' : (sel ? '#c9a13b' : '#2f7a68');
+    ctx.lineWidth = showKnot ? 1 : (sel ? 4 : 3);
+    ctx.beginPath();
+    if (e.v1 === e.v2){
+      const c = loopCircle(e);
+      ctx.arc(c.cx, c.cy, c.r, 0, Math.PI*2);
+    } else {
+      const A = vertices[e.v1], B = vertices[e.v2];
+      const arc = arcThrough(A, e.mid, B);
+      if (!arc){ ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); }
+      else { ctx.arc(arc.cx, arc.cy, arc.r, arc.a0, arc.a1, arc.ccw); }
+    }
+    ctx.stroke();
+
+    if (!showKnot){
+      ctx.beginPath();
+      ctx.arc(e.mid.x, e.mid.y, sel?5:3.5, 0, Math.PI*2);
+      ctx.fillStyle = sel ? '#c9a13b' : '#5b6b7a';
+      ctx.fill();
+    }
+  }
+
+  for (const id in vertices){
+    const v = vertices[id];
+    const sel = selection && selection.type==='vertex' && selection.id===id;
+    ctx.beginPath();
+    ctx.arc(v.x,v.y, showKnot?3:(sel?9:7), 0, Math.PI*2);
+    ctx.fillStyle = showKnot ? '#3a4250' : (v.friction===Infinity ? '#c9a13b' : '#e7dcc2');
+    ctx.fill();
+    if (!showKnot){
+      ctx.lineWidth = sel? 3:1.5;
+      ctx.strokeStyle = sel ? '#fff' : '#12151a';
+      ctx.stroke();
+    }
+  }
+
+  // --- entrelacs : les brins, en surimpression ---
+  // Les courbes sont toujours dessinées entières et continues (mêmes
+  // tangentes des deux côtés d'un croisement), sans se soucier du dessus/
+  // dessous. La profondeur est ensuite un pur effet de peinture : à
+  // chaque croisement, on repeint par-dessus un petit bout du VRAI tracé
+  // du brin qui doit apparaître au-dessus — jamais un segment imposé, et
+  // jamais de trou : la courbe elle-même n'est ni interrompue ni effacée.
+  let strandCount = 0;
+  if (showKnot){
+    const width = parseFloat(document.getElementById('strandWidth').value)||14;
+    const strands = traceStrands();
+    strandCount = strands.length;
+    const sampled = strands.map((portions,si) => portions.map(p => ({p, s:samplePortion(p), color:STRAND_PALETTE[si%STRAND_PALETTE.length]})));
+    const roleColor = {}; // "eid:role" -> couleur du brin qui passe par ce rôle à ce croisement
+    for (const portions of sampled) for (const {p,color} of portions){
+      roleColor[p.from.eid+':'+p.from.role] = color;
+      roleColor[p.to.eid+':'+p.to.role] = color;
+    }
+    function strokePts(pts,color,w){
+      if (!pts || pts.length<2) return;
+      ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+      ctx.stroke();
+    }
+    // 1) tous les brins, en entier, couleur pleine puis liseré clair
+    for (const portions of sampled) for (const {s,color} of portions) strokePts(s.pts, color, width);
+    for (const portions of sampled) for (const {s} of portions) strokePts(s.pts, 'rgba(255,255,255,0.18)', Math.max(1,width*0.22));
+
+    // 2) points réels de la courbe juste avant/après chaque croisement,
+    //    récupérés directement dans l'échantillonnage déjà calculé — pas
+    //    de segment imposé, c'est littéralement un bout du vrai brin.
+    const K = 4; // segments pris de chaque côté (sur 16 au total par portion)
+    const localNear = {}; // "eid:role" -> {arrive:[...], leave:[...]}
+    for (const portions of sampled){
+      for (const {p,s} of portions){
+        const kFrom = p.from.eid+':'+p.from.role;
+        (localNear[kFrom] || (localNear[kFrom]={})).leave = s.pts.slice(0, K+1);
+        const kTo = p.to.eid+':'+p.to.role;
+        (localNear[kTo] || (localNear[kTo]={})).arrive = s.pts.slice(s.pts.length-1-K);
+      }
+    }
+    function localPathAt(eid, role){
+      const L = localNear[eid+':'+role];
+      if (!L) return null;
+      const arrive = L.arrive || [edges[eid].mid];
+      const leave  = L.leave  || [edges[eid].mid];
+      return arrive.concat(leave.slice(1)); // ne duplique pas le point de croisement
+    }
+    // 3) tous les brins sont déjà tracés en entier (étape 1), avec les
+    //    bonnes tangentes, sans se soucier du dessus/dessous. On rajoute
+    //    simplement, à chaque croisement, un petit bout du VRAI tracé du
+    //    brin qui passe dessus — repeint par-dessus, sans rien effacer —
+    //    ce qui suffit à le faire apparaître au-dessus localement.
+    for (const id in edges){
+      const e = edges[id];
+      if (e.v1===e.v2) continue; // simplifié : pas de croisement géré sur les boucles pour l'instant
+      const overRole = e.priority==='right' ? 'prev' : 'next';
+      const overPath = localPathAt(id, overRole);
+      if (!overPath) continue;
+      const overColor = roleColor[id+':'+overRole] || STRAND_PALETTE[0];
+      strokePts(overPath, overColor, width);
+      strokePts(overPath, 'rgba(255,255,255,0.18)', Math.max(1,width*0.22));
+    }
+
+    if (editTangents){
+      ctx.lineWidth = 1;
+      const seenCross = new Set();
+      for (const portions of sampled){
+        for (const {p, s} of portions){
+          // poignées de croisement (une fois par côté d'arête/rôle)
+          const kFrom = p.from.eid+':'+p.from.role+':'+p.from.end;
+          if (!seenCross.has(kFrom)){
+            seenCross.add(kFrom);
+            const P0 = edges[p.from.eid].mid;
+            ctx.strokeStyle = '#5aa6a6';
+            ctx.beginPath(); ctx.moveTo(P0.x,P0.y); ctx.lineTo(s.C0.x,s.C0.y); ctx.stroke();
+            dot(s.C0, 4, '#dff0ee');
+          }
+          const kTo = p.to.eid+':'+p.to.role+':'+p.to.end;
+          if (!seenCross.has(kTo)){
+            seenCross.add(kTo);
+            const P2 = edges[p.to.eid].mid;
+            ctx.strokeStyle = '#5aa6a6';
+            ctx.beginPath(); ctx.moveTo(P2.x,P2.y); ctx.lineTo(s.C1.x,s.C1.y); ctx.stroke();
+            dot(s.C1, 4, '#dff0ee');
+          }
+        }
+      }
+    }
+  }
+  function dot(P, r, color){ ctx.beginPath(); ctx.arc(P.x,P.y,r,0,Math.PI*2); ctx.fillStyle=color; ctx.fill(); }
+
+  document.getElementById('status').textContent =
+    `${Object.keys(vertices).length} ${t('unit_vertices')} · ${Object.keys(edges).length} ${t('unit_edges')}` +
+    (showKnot ? ` · ${strandCount} ${t('unit_strands')}` : '') +
+    (relaxing ? ' · '+t('status_relaxing') : '');
+}
+
+// ---------- interaction ----------
+function vertexAt(x,y){
+  for (const id in vertices){
+    const v = vertices[id];
+    if (dist(v,{x,y}) < 11) return id;
+  }
+  return null;
+}
+function midAt(x,y){
+  for (const id in edges){
+    const e = edges[id];
+    if (dist(e.mid,{x,y}) < 9) return id;
+  }
+  return null;
+}
+function edgeAt(x,y){
+  for (const id in edges){
+    const e = edges[id];
+    if (e.v1 === e.v2){
+      const c = loopCircle(e);
+      if (Math.abs(dist({x:c.cx,y:c.cy},{x,y}) - c.r) < 8) return id;
+      continue;
+    }
+    const samples = sampleEdgeCurve(e, 16);
+    let best = Infinity;
+    for (const p of samples) best = Math.min(best, dist(p,{x,y}));
+    if (best < 8) return id;
+  }
+  return null;
+}
+
+function setMode(m){
+  mode = m; edgeStart=null;
+  for (const b of ['modeSelect','modeVertex','modeEdge','modeDelete'])
+    document.getElementById(b).classList.toggle('active', b==='mode'+m[0].toUpperCase()+m.slice(1));
+}
+document.getElementById('modeSelect').onclick=()=>setMode('select');
+document.getElementById('modeVertex').onclick=()=>setMode('vertex');
+document.getElementById('modeEdge').onclick=()=>setMode('edge');
+document.getElementById('modeDelete').onclick=()=>setMode('delete');
+
+// ---------- détection des poignées de l'entrelacs (visibles seulement en
+// vue Entrelacs + édition des tangentes) ----------
+function knotHandleAt(x,y){
+  if (!showKnot || !editTangents) return null;
+  const strands = traceStrands();
+  const seenCross = new Set();
+  for (const portions of strands){
+    for (const p of portions){
+      const s = samplePortion(p);
+      const kFrom = p.from.eid+':'+p.from.role+':'+p.from.end;
+      if (!seenCross.has(kFrom)){
+        seenCross.add(kFrom);
+        if (dist(s.C0,{x,y}) < 7) return {kind:'cross', eid:p.from.eid, role:p.from.role, end:p.from.end};
+      }
+      const kTo = p.to.eid+':'+p.to.role+':'+p.to.end;
+      if (!seenCross.has(kTo)){
+        seenCross.add(kTo);
+        if (dist(s.C1,{x,y}) < 7) return {kind:'cross', eid:p.to.eid, role:p.to.role, end:p.to.end};
+      }
+    }
+  }
+  return null;
+}
+
+cv.addEventListener('mousedown', e=>{
+  const rect = cv.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+
+  if (mode==='select'){
+    const h = knotHandleAt(x,y);
+    if (h && h.kind==='cross'){
+      dragging = {type:'cross', eid:h.eid, role:h.role, end:h.end};
+      draw();
+      return;
+    }
+  }
+
+  if (mode==='vertex'){
+    if (!vertexAt(x,y)) { addVertex(x,y); draw(); }
+    return;
+  }
+  if (mode==='edge'){
+    const vid = vertexAt(x,y);
+    if (!vid) return;
+    if (edgeStart===null){ edgeStart = vid; }
+    else { addEdge(edgeStart, vid); edgeStart=null; }
+    draw();
+    return;
+  }
+  if (mode==='delete'){
+    const vid = vertexAt(x,y);
+    if (vid){ removeVertex(vid); selection=null; showProps(); draw(); return; }
+    const eid = edgeAt(x,y);
+    if (eid){ removeEdge(eid); selection=null; showProps(); draw(); return; }
+    return;
+  }
+  if (mode==='select'){
+    const vid = vertexAt(x,y);
+    if (vid){ dragging={type:'vertex',id:vid}; selection={type:'vertex',id:vid}; showProps(); draw(); return; }
+    const mid = midAt(x,y);
+    if (mid){ dragging={type:'mid',id:mid}; selection={type:'edge',id:mid}; showProps(); draw(); return; }
+    const eid = edgeAt(x,y);
+    if (eid){ selection={type:'edge',id:eid}; showProps(); draw(); return; }
+    selection=null; showProps(); draw();
+  }
+});
+cv.addEventListener('mousemove', e=>{
+  if (!dragging) return;
+  const rect = cv.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  if (dragging.type==='vertex'){
+    const v = vertices[dragging.id];
+    if (v.friction===Infinity) return;
+    v.x = x; v.y = y;
+    recomputeOrder(dragging.id);
+    for (const s of v.order) recomputeOrder(otherEnd(edges[parseDart(s).eid], dragging.id));
+  } else if (dragging.type==='mid'){
+    // le point milieu se déplace librement : c'est lui qui fixe la courbure
+    // de l'arc (nulle si laissé sur le segment A-B, quelconque sinon).
+    edges[dragging.id].mid.x = x;
+    edges[dragging.id].mid.y = y;
+  } else if (dragging.type==='cross'){
+    const cs = getCrossState(dragging.eid, dragging.role);
+    const P0 = edges[dragging.eid].mid;
+    const dx=x-P0.x, dy=y-P0.y, len=Math.max(4,Math.hypot(dx,dy));
+    const ang = Math.atan2(dy,dx);
+    cs.angle = dragging.end==='b' ? ang : ang+Math.PI;
+    if (dragging.end==='b') cs.lenB = len; else cs.lenA = len;
+  }
+  draw();
+});
+window.addEventListener('mouseup', ()=>{ dragging=null; });
+
+// clic droit : en vue Entrelacs, sur un croisement -> bascule la priorité
+// (droite/gauche) ; sinon sur un point milieu -> revient à la courbure
+// nulle ; sur un sommet -> ancrer / désancrer.
+cv.addEventListener('contextmenu', e=>{
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const mid = midAt(x,y);
+  if (mid){
+    if (showKnot){
+      const edge = edges[mid];
+      edge.priority = edge.priority==='right' ? 'left' : 'right';
+      draw();
+      return;
+    }
+    const edge = edges[mid];
+    if (edge.v1===edge.v2){ edge.mid = {x:vertices[edge.v1].x, y:vertices[edge.v1].y-50}; }
+    else { edge.mid = midpoint(vertices[edge.v1], vertices[edge.v2]); }
+    draw();
+    return;
+  }
+  if (showKnot && editTangents){
+    const h = knotHandleAt(x,y);
+    if (h) return; // le clic droit sur une poignée de croisement ne fait rien de spécial pour l'instant
+  }
+  const vid = vertexAt(x,y);
+  if (vid){
+    const v = vertices[vid];
+    v.friction = (v.friction===Infinity) ? 1 : Infinity;
+    if (selection && selection.type==='vertex' && selection.id===vid) showProps();
+    draw();
+  }
+});
+
+// ---------- panneau de propriétés ----------
+function showProps(){
+  const panel = document.getElementById('propPanel');
+  const pv = document.getElementById('propVertex'), pe = document.getElementById('propEdge'), pn = document.getElementById('propNone');
+  pv.style.display=pe.style.display=pn.style.display='none';
+  panel.classList.add('show');
+  if (!selection){ pn.style.display='block'; return; }
+  if (selection.type==='vertex'){
+    const v = vertices[selection.id];
+    pv.style.display='block';
+    document.getElementById('vId').textContent = v.id;
+    document.getElementById('vAnchor').checked = v.friction===Infinity;
+    document.getElementById('vFriction').value = v.friction===Infinity? 1 : v.friction;
+    document.getElementById('vFriction').disabled = v.friction===Infinity;
+  } else {
+    const e = edges[selection.id];
+    pe.style.display='block';
+    document.getElementById('eId').textContent = e.id;
+    document.getElementById('eStiff').value = e.stiffness;
+    document.getElementById('eRest').value = e.restLength;
+  }
+}
+document.getElementById('vAnchor').onchange = e=>{
+  const v = vertices[selection.id];
+  v.friction = e.target.checked ? Infinity : parseFloat(document.getElementById('vFriction').value)||1;
+  showProps(); draw();
+};
+document.getElementById('vFriction').oninput = e=>{
+  const v = vertices[selection.id];
+  if (v.friction!==Infinity) v.friction = parseFloat(e.target.value)||0;
+};
+document.getElementById('eStiff').oninput = e=>{ edges[selection.id].stiffness = parseFloat(e.target.value)||0; };
+document.getElementById('eRest').oninput = e=>{ edges[selection.id].restLength = parseFloat(e.target.value)||1; };
+
+// ---------- relaxation on/off ----------
+document.getElementById('runToggle').onclick = ()=>{
+  relaxing = !relaxing;
+  document.getElementById('runToggle').textContent = relaxing ? t('btn_relax_stop') : t('btn_relax_start');
+  if (relaxing) relaxLoop(); else draw();
+};
+
+document.getElementById('knotToggle').onclick = ()=>{
+  showKnot = !showKnot;
+  document.getElementById('knotToggle').classList.toggle('active', showKnot);
+  document.getElementById('knotToggle').textContent = showKnot ? t('btn_knot_hide') : t('btn_knot_show');
+  draw();
+};
+document.getElementById('tangentToggle').onclick = ()=>{
+  editTangents = !editTangents;
+  document.getElementById('tangentToggle').classList.toggle('active', editTangents);
+  draw();
+};
+
+// ---------- export SVG ----------
+// Reconstruit l'entrelacs comme de vrais chemins vectoriels (courbes de
+// Bézier exactes, pas un échantillonnage) : un <path> fermé par brin, plus,
+// par-dessus, un petit <path> par croisement pour le brin qui passe dessus
+// — exactement la même logique de profondeur que le rendu canvas, mais
+// avec une géométrie exacte (subdivision de De Casteljau) plutôt
+// qu'échantillonnée, et l'ordre des éléments SVG qui fait l'empilement.
+function fmt(pt){ return pt.x.toFixed(2)+','+pt.y.toFixed(2); }
+function strandPathD(portions){
+  let d = '';
+  portions.forEach((p,i)=>{
+    const {P0,C0,C1,P1} = portionBezier(p);
+    if (i===0) d += 'M '+fmt(P0)+' ';
+    d += 'C '+fmt(C0)+' '+fmt(C1)+' '+fmt(P1)+' ';
+  });
+  return d.trim()+' Z';
+}
+function crossingOverlayD(eid, role, fromPortion, toPortion, tFrac){
+  // bout de courbe côté "arrivée" (se termine exactement au croisement)
+  let dArrive = null;
+  if (toPortion){
+    const {P0,C0,C1,P1} = portionBezier(toPortion);
+    const sp = splitCubic(P0,C0,C1,P1, 1-tFrac).right; // [F,E,C,P1=croisement]
+    dArrive = 'M '+fmt(sp[0])+' C '+fmt(sp[1])+' '+fmt(sp[2])+' '+fmt(sp[3])+' ';
+  }
+  // bout de courbe côté "départ" (part exactement du croisement)
+  let dLeave = '';
+  if (fromPortion){
+    const {P0,C0,C1,P1} = portionBezier(fromPortion);
+    const sp = splitCubic(P0,C0,C1,P1, tFrac).left; // [P0=croisement,A,D,F]
+    dLeave = (dArrive? '' : 'M '+fmt(sp[0])+' ') + 'C '+fmt(sp[1])+' '+fmt(sp[2])+' '+fmt(sp[3])+' ';
+  }
+  if (!dArrive && !dLeave) return null;
+  return (dArrive||'') + dLeave;
+}
+function exportSVG(){
+  const strands = traceStrands();
+  const width = parseFloat(document.getElementById('strandWidth').value)||14;
+
+  // repère les portions "de départ" / "d'arrivée" pour chaque (arête,rôle)
+  const fromPortion = {}, toPortion = {};
+  for (const portions of strands) for (const p of portions){
+    fromPortion[p.from.eid+':'+p.from.role] = p;
+    toPortion[p.to.eid+':'+p.to.role] = p;
+  }
+
+  // cadrage : englobe tous les sommets, avec une marge
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for (const id in vertices){
+    const v=vertices[id];
+    minX=Math.min(minX,v.x); minY=Math.min(minY,v.y);
+    maxX=Math.max(maxX,v.x); maxY=Math.max(maxY,v.y);
+  }
+  if (!isFinite(minX)){ minX=0;minY=0;maxX=400;maxY=400; }
+  const m = 60;
+  const vb = `${(minX-m).toFixed(1)} ${(minY-m).toFixed(1)} ${(maxX-minX+2*m).toFixed(1)} ${(maxY-minY+2*m).toFixed(1)}`;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}">\n`;
+  svg += `  <g fill="none" stroke-linecap="round" stroke-linejoin="round">\n`;
+
+  // 1) un chemin fermé par brin, couleur pleine puis liseré clair
+  strands.forEach((portions,si)=>{
+    const color = STRAND_PALETTE[si % STRAND_PALETTE.length];
+    const d = strandPathD(portions);
+    svg += `    <path d="${d}" stroke="${color}" stroke-width="${width}"/>\n`;
+    svg += `    <path d="${d}" stroke="rgba(255,255,255,0.18)" stroke-width="${Math.max(1,width*0.22).toFixed(2)}"/>\n`;
+  });
+
+  // 2) par-dessus : à chaque croisement, le petit bout du brin du dessus
+  const K = 4, N = 16, tFrac = K/N;
+  const roleColor = {};
+  strands.forEach((portions,si)=>{
+    const color = STRAND_PALETTE[si % STRAND_PALETTE.length];
+    for (const p of portions){
+      roleColor[p.from.eid+':'+p.from.role] = color;
+      roleColor[p.to.eid+':'+p.to.role] = color;
+    }
+  });
+  for (const id in edges){
+    const e = edges[id];
+    if (e.v1===e.v2) continue; // boucles : non gérées ici, comme sur le canvas
+    const overRole = e.priority==='right' ? 'prev' : 'next';
+    const d = crossingOverlayD(id, overRole, fromPortion[id+':'+overRole], toPortion[id+':'+overRole], tFrac);
+    if (!d) continue;
+    const color = roleColor[id+':'+overRole] || STRAND_PALETTE[0];
+    svg += `    <path d="${d}" stroke="${color}" stroke-width="${width}"/>\n`;
+    svg += `    <path d="${d}" stroke="rgba(255,255,255,0.18)" stroke-width="${Math.max(1,width*0.22).toFixed(2)}"/>\n`;
+  }
+
+  svg += `  </g>\n</svg>\n`;
+  return svg;
+}
+document.getElementById('btnExportSvg').onclick = ()=>{
+  if (Object.keys(edges).length===0){ alert(t('alert_empty_export')); return; }
+  const svg = exportSVG();
+  const blob = new Blob([svg], {type:'image/svg+xml'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'entrelacs.svg';
+  a.click();
+};
+
+// ---------- sauvegarde / restauration ----------
+document.getElementById('btnSave').onclick = ()=>{
+  recomputeAllOrders();
+  const data = {
+    format: 'entrelacs-graphe-planaire-v1',
+    nextVId, nextEId,
+    vertices: Object.values(vertices).map(v=>({
+      id:v.id, x:v.x, y:v.y,
+      friction: v.friction===Infinity? "Infinity" : v.friction,
+      order: v.order
+    })),
+    edges: Object.values(edges).map(e=>({id:e.id, v1:e.v1, v2:e.v2, stiffness:e.stiffness, restLength:e.restLength, mid:e.mid, priority:e.priority})),
+    crossState
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'graphe-planaire.json';
+  a.click();
+};
+document.getElementById('btnLoad').onclick = ()=> document.getElementById('fileIn').click();
+document.getElementById('fileIn').onchange = e=>{
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      vertices={}; edges={};
+      for (const v of data.vertices){
+        vertices[v.id] = { id:v.id, x:v.x, y:v.y,
+          friction: v.friction==="Infinity"? Infinity : v.friction, order:[...v.order] };
+      }
+      for (const e2 of data.edges){
+        edges[e2.id] = { id:e2.id, v1:e2.v1, v2:e2.v2, stiffness:e2.stiffness, restLength:e2.restLength, mid:e2.mid, priority:e2.priority||'right' };
+      }
+      // repli pour d'anciens fichiers sans point milieu, ou dont `order`
+      // est encore au format brut (ids d'arêtes plutôt que brins a/b)
+      for (const id2 in edges) if (!edges[id2].mid) initEdgeMid(edges[id2]);
+      const legacyOrder = Object.values(vertices).some(v => v.order.some(s=>!s.includes(':')));
+      if (legacyOrder) rebuildAllDarts();
+      crossState = data.crossState || {};
+      nextVId = data.nextVId||1; nextEId = data.nextEId||1;
+      selection=null; showProps(); draw();
+    }catch(err){ alert(t('alert_invalid_file_prefix')+err.message); }
+  };
+  reader.readAsText(file);
+};
+document.getElementById('btnClear').onclick = ()=>{
+  if (!confirm(t('confirm_clear'))) return;
+  vertices={}; edges={}; nextVId=1; nextEId=1; selection=null; relaxing=false;
+  crossState={};
+  document.getElementById('runToggle').textContent=t('btn_relax_start');
+  showProps(); draw();
+};
+
+// ---------- graphe de démonstration ----------
+function demo(){
+  const positions = [[300,180],[420,180],[480,290],[420,400],[300,400],[240,290]];
+  const ids = positions.map(([x,y])=>addVertex(x,y));
+  for (let i=0;i<ids.length;i++) addEdge(ids[i], ids[(i+1)%ids.length]);
+  addEdge(ids[0], ids[3]); // une diagonale pour voir une arête plus longue
+  vertices[ids[0]].friction = Infinity; // un ancrage de démonstration
+  recomputeAllOrders();
+}
+
+document.getElementById('langSelect').onchange = e=>{
+  currentLang = e.target.value;
+  try { localStorage.setItem('entrelacs-lang', currentLang); } catch(err){}
+  applyI18n();
+};
+
+resize(); demo(); showProps(); applyI18n(); draw();
+</script>
+</body>
+</html>
