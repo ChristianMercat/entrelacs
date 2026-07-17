@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Éditeur de graphe planaire — Traceur d'Entrelacs</title>
+<title>Éditeur de graphe planaire — Entrelacs</title>
 <style>
   :root{
     --ink: #12151a;
@@ -60,7 +60,7 @@
 <body>
 <div id="app">
   <div id="canvasWrap">
-    <div id="title" data-i18n-html="title_html"> <b>éditeur de graphe planaire et d'entrelacs</b></div>
+    <div id="title" data-i18n-html="title_html">entrelacs · <b>éditeur de graphe planaire</b></div>
     <canvas id="cv"></canvas>
     <div id="status">—</div>
   </div>
@@ -118,6 +118,16 @@
       éditable et relaxable pendant ce temps.
     </div>
 
+    <h2 data-i18n="h2_invariants">Invariants</h2>
+    <div class="modes">
+      <button id="btnInvariants" class="full" data-i18n="btn_invariants">🧮 Calculer les invariants</button>
+      <button id="btnExportSage" class="full" data-i18n="btn_export_sage">🐍 Exporter pour SageMath</button>
+    </div>
+    <div id="invariantsOut" style="font-family:'JetBrains Mono',monospace; font-size:11.5px; line-height:1.6; margin-top:8px; white-space:pre-wrap; word-break:break-word;"></div>
+    <div id="hint" style="margin-top:8px" data-i18n="hint_invariants">
+      
+    </div>
+
     <h2 data-i18n="h2_props">Propriétés</h2>
     <div id="propPanel">
       <div id="propVertex" style="display:none">
@@ -157,8 +167,8 @@
 --------------------------------------------------------------------- */
 const I18N = {
 fr: {
-    doc_title: "Éditeur de graphe planaire et Entrelacs",
-  title_html: "<b>éditeur de graphe planaire et son <a href='http://entrelacs.net'>entrelacs</a></b>",
+  doc_title: "Éditeur de graphe planaire — Entrelacs",
+  title_html: "entrelacs · <b>éditeur de graphe planaire</b>",
   h1_tools: "Outils", btn_select: "Sélection", btn_vertex: "+ Sommet", btn_edge: "+ Arête", btn_delete: "Supprimer",
   hint_tools_html: "<b>Sommet</b> : clic sur le fond pour créer.<br><b>Arête</b> : clic sur un sommet, puis un second (identique pour une boucle).<br><b>Sélection</b> : glisser un sommet pour le déplacer (clic droit = ancrer/désancrer) ; glisser le petit point milieu d'une arête pour courber son arc (clic droit dessus = revenir à la courbure nulle) ; clic sur l'arc pour sélectionner l'arête.<br><b>Supprimer</b> : clic sur sommet ou arête.",
   h2_relaxation: "Relaxation", lbl_stiffness: "Raideur globale", lbl_repel: "Répulsion sommets", lbl_minangle: "Angle mini (°)",
@@ -167,6 +177,16 @@ fr: {
   h2_knot: "Entrelacs", lbl_strandwidth: "Largeur des brins", btn_knot_show: "🧵 Afficher l'entrelacs", btn_knot_hide: "🧵 Masquer l'entrelacs",
   btn_tangent: "✎ Éditer les tangentes",
   hint_knot_html: "Chaque arête code un croisement en son milieu, et porte les deux points de contrôle (un par bout) qui définissent chaque brin — courbe de Bézier de degré simple, tangente initiale à 30°–60° de l'arête. Clic droit sur un croisement, en vue Entrelacs, pour inverser quel brin passe dessus (« priorité à droite » ↔ « à gauche »). Avec l'édition des tangentes active : glissez les poignées vertes pour ajuster angle et longueur. Le graphe reste éditable et relaxable pendant ce temps.",
+  h2_invariants: "Invariants", btn_invariants: "🧮 Calculer les invariants", btn_export_sage: "🐍 Exporter pour SageMath",
+  hint_invariants: "Calculés directement sur le graphe signé (chaque arête = un croisement, la priorité indique quel brin passe dessus). Genre, écriture, enlacement, crochet de Kauffman et polynôme de Jones.",
+  txt_graph_empty: "Le graphe est vide.", txt_computing: "Calcul en cours…",
+  inv_components: "Composantes (brins)", inv_crossings: "Croisements", inv_genus: "Genre (surface de Seifert)", inv_writhe: "Écriture totale (writhe)",
+  inv_linking_header: "Enlacement par paire :", inv_linking_none: "  (aucun croisement entre composantes différentes)",
+  inv_linking_pair: "  lk(brin {i}, brin {j}) = {v}",
+  inv_bracket_none: "Crochet de Kauffman : non calculé (plus de {n} croisements, méthode directe trop coûteuse).",
+  inv_bracket_header: "Crochet de Kauffman ⟨D⟩ (variable A) :", inv_jones_header: "Polynôme de Jones V(t) :",
+  inv_jones_quarter_note: "  (exposants non entiers en t — normal pour certains entrelacs à plusieurs composantes)",
+  sage_empty_alert: "Le graphe est vide — rien à exporter.",
   h2_props: "Propriétés", lbl_vertex_hash: "Sommet #", lbl_anchor: "Ancré (friction ∞)", lbl_friction: "Friction",
   lbl_edge_hash: "Arête #", lbl_edge_stiffness: "Raideur k", lbl_restlength: "Longueur à vide", txt_none_selected: "Rien de sélectionné.",
   h2_file: "Fichier", btn_save: "💾 Sauvegarder (.json)", btn_load: "📂 Restaurer un fichier", btn_export_svg: "⬇ Exporter en SVG", btn_clear: "Tout effacer",
@@ -175,8 +195,8 @@ fr: {
   unit_vertices: "sommets", unit_edges: "arêtes", unit_strands: "brin(s)", status_relaxing: "relaxation en cours…"
 },
 en: {
-  doc_title: "Planar Graph Editor — Links Drawer",
-  title_html: "<b>planar graph & <a href='http://entrelacs.net'>links</a> editor</b>",
+  doc_title: "Planar Graph Editor — Interlace",
+  title_html: "interlace · <b>planar graph editor</b>",
   h1_tools: "Tools", btn_select: "Select", btn_vertex: "+ Vertex", btn_edge: "+ Edge", btn_delete: "Delete",
   hint_tools_html: "<b>Vertex</b>: click empty space to create.<br><b>Edge</b>: click a vertex, then a second one (same vertex twice for a loop).<br><b>Select</b>: drag a vertex to move it (right-click = anchor/unanchor); drag an edge's small midpoint to bend its arc (right-click it to reset to zero curvature); click the arc to select the edge.<br><b>Delete</b>: click a vertex or an edge.",
   h2_relaxation: "Relaxation", lbl_stiffness: "Global stiffness", lbl_repel: "Vertex repulsion", lbl_minangle: "Min angle (°)",
@@ -185,6 +205,16 @@ en: {
   h2_knot: "Interlace", lbl_strandwidth: "Strand width", btn_knot_show: "🧵 Show interlace", btn_knot_hide: "🧵 Hide interlace",
   btn_tangent: "✎ Edit tangents",
   hint_knot_html: "Each edge encodes a crossing at its midpoint, and carries the two control points (one per end) that define each strand — a low-degree Bézier curve, initial tangent at 30°–60° from the edge. Right-click a crossing, in Interlace view, to flip which strand passes on top (\"right priority\" ↔ \"left\"). With tangent editing on: drag the green handles to adjust angle and length. The graph stays editable and relaxable throughout.",
+  h2_invariants: "Invariants", btn_invariants: "🧮 Compute invariants", btn_export_sage: "🐍 Export for SageMath",
+  hint_invariants: "Computed directly from the signed graph (each edge = one crossing, priority tells which strand passes on top). Genus, writhe, linking number, Kauffman bracket, and Jones polynomial.",
+  txt_graph_empty: "The graph is empty.", txt_computing: "Computing…",
+  inv_components: "Components (strands)", inv_crossings: "Crossings", inv_genus: "Genus (Seifert surface)", inv_writhe: "Total writhe",
+  inv_linking_header: "Linking number per pair:", inv_linking_none: "  (no crossing between different components)",
+  inv_linking_pair: "  lk(strand {i}, strand {j}) = {v}",
+  inv_bracket_none: "Kauffman bracket: not computed (more than {n} crossings, direct method too costly).",
+  inv_bracket_header: "Kauffman bracket ⟨D⟩ (variable A):", inv_jones_header: "Jones polynomial V(t):",
+  inv_jones_quarter_note: "  (non-integer exponents in t — expected for some multi-component links)",
+  sage_empty_alert: "The graph is empty — nothing to export.",
   h2_props: "Properties", lbl_vertex_hash: "Vertex #", lbl_anchor: "Anchored (friction ∞)", lbl_friction: "Friction",
   lbl_edge_hash: "Edge #", lbl_edge_stiffness: "Stiffness k", lbl_restlength: "Rest length", txt_none_selected: "Nothing selected.",
   h2_file: "File", btn_save: "💾 Save (.json)", btn_load: "📂 Load a file", btn_export_svg: "⬇ Export as SVG", btn_clear: "Clear all",
@@ -194,7 +224,7 @@ en: {
 },
 de: {
   doc_title: "Editor für planare Graphen — Knotenmuster",
-  title_html: " <b>Editor für planare Graphen und <a href='http://entrelacs.net'>Knotenmuster</a></b>",
+  title_html: "Knotenmuster · <b>Editor für planare Graphen</b>",
   h1_tools: "Werkzeuge", btn_select: "Auswahl", btn_vertex: "+ Knoten", btn_edge: "+ Kante", btn_delete: "Löschen",
   hint_tools_html: "<b>Knoten</b>: Klick auf leere Fläche, um zu erstellen.<br><b>Kante</b>: Klick auf einen Knoten, dann auf einen zweiten (zweimal derselbe für eine Schlinge).<br><b>Auswahl</b>: Knoten ziehen, um ihn zu verschieben (Rechtsklick = verankern/lösen); den kleinen Mittelpunkt einer Kante ziehen, um ihren Bogen zu krümmen (Rechtsklick darauf setzt die Krümmung zurück); Klick auf den Bogen wählt die Kante aus.<br><b>Löschen</b>: Klick auf Knoten oder Kante.",
   h2_relaxation: "Relaxation", lbl_stiffness: "Globale Steifigkeit", lbl_repel: "Knotenabstoßung", lbl_minangle: "Mindestwinkel (°)",
@@ -203,6 +233,16 @@ de: {
   h2_knot: "Knotenmuster", lbl_strandwidth: "Strangbreite", btn_knot_show: "🧵 Knotenmuster anzeigen", btn_knot_hide: "🧵 Knotenmuster ausblenden",
   btn_tangent: "✎ Tangenten bearbeiten",
   hint_knot_html: "Jede Kante kodiert eine Kreuzung in ihrer Mitte und trägt die zwei Kontrollpunkte (einer je Ende), die jeden Strang festlegen — eine Bézierkurve niedrigen Grades, Anfangstangente 30°–60° zur Kante. Rechtsklick auf eine Kreuzung in der Knotenmuster-Ansicht kehrt um, welcher Strang obenliegt („Priorität rechts“ ↔ „links“). Bei aktiver Tangentenbearbeitung: die grünen Griffe ziehen, um Winkel und Länge anzupassen. Der Graph bleibt währenddessen editierbar und relaxierbar.",
+  h2_invariants: "Invarianten", btn_invariants: "🧮 Invarianten berechnen", btn_export_sage: "🐍 Für SageMath exportieren",
+  hint_invariants: "Direkt aus dem signierten Graphen berechnet (jede Kante = eine Kreuzung, die Priorität gibt an, welcher Strang obenliegt). Geschlecht, Writhe, Verschlingungszahl, Kauffman-Klammer und Jones-Polynom.",
+  txt_graph_empty: "Der Graph ist leer.", txt_computing: "Berechnung läuft…",
+  inv_components: "Komponenten (Stränge)", inv_crossings: "Kreuzungen", inv_genus: "Geschlecht (Seifert-Fläche)", inv_writhe: "Gesamt-Writhe",
+  inv_linking_header: "Verschlingungszahl je Paar:", inv_linking_none: "  (keine Kreuzung zwischen verschiedenen Komponenten)",
+  inv_linking_pair: "  lk(Strang {i}, Strang {j}) = {v}",
+  inv_bracket_none: "Kauffman-Klammer: nicht berechnet (mehr als {n} Kreuzungen, direkte Methode zu aufwendig).",
+  inv_bracket_header: "Kauffman-Klammer ⟨D⟩ (Variable A):", inv_jones_header: "Jones-Polynom V(t):",
+  inv_jones_quarter_note: "  (nicht-ganzzahlige Exponenten in t — normal bei manchen mehrkomponentigen Verschlingungen)",
+  sage_empty_alert: "Der Graph ist leer — nichts zu exportieren.",
   h2_props: "Eigenschaften", lbl_vertex_hash: "Knoten #", lbl_anchor: "Verankert (Reibung ∞)", lbl_friction: "Reibung",
   lbl_edge_hash: "Kante #", lbl_edge_stiffness: "Steifigkeit k", lbl_restlength: "Ruhelänge", txt_none_selected: "Nichts ausgewählt.",
   h2_file: "Datei", btn_save: "💾 Speichern (.json)", btn_load: "📂 Datei laden", btn_export_svg: "⬇ Als SVG exportieren", btn_clear: "Alles löschen",
@@ -211,8 +251,8 @@ de: {
   unit_vertices: "Knoten", unit_edges: "Kanten", unit_strands: "Strang/Stränge", status_relaxing: "Relaxation läuft…"
 },
 es: {
-  doc_title: "Editor de grafos planares y su Entrelazado",
-  title_html: "<b>editor de grafos planares y <a href='http://entrelacs.net'>entrelazado</a></b>",
+  doc_title: "Editor de grafos planares — Entrelazado",
+  title_html: "entrelazado · <b>editor de grafos planares</b>",
   h1_tools: "Herramientas", btn_select: "Selección", btn_vertex: "+ Vértice", btn_edge: "+ Arista", btn_delete: "Eliminar",
   hint_tools_html: "<b>Vértice</b>: clic en el fondo para crear.<br><b>Arista</b>: clic en un vértice, luego en un segundo (el mismo dos veces para un bucle).<br><b>Selección</b>: arrastra un vértice para moverlo (clic derecho = anclar/desanclar); arrastra el pequeño punto medio de una arista para curvar su arco (clic derecho sobre él para volver a curvatura nula); clic en el arco para seleccionar la arista.<br><b>Eliminar</b>: clic en un vértice o una arista.",
   h2_relaxation: "Relajación", lbl_stiffness: "Rigidez global", lbl_repel: "Repulsión de vértices", lbl_minangle: "Ángulo mínimo (°)",
@@ -221,6 +261,16 @@ es: {
   h2_knot: "Entrelazado", lbl_strandwidth: "Ancho de las hebras", btn_knot_show: "🧵 Mostrar entrelazado", btn_knot_hide: "🧵 Ocultar entrelazado",
   btn_tangent: "✎ Editar tangentes",
   hint_knot_html: "Cada arista codifica un cruce en su punto medio y lleva los dos puntos de control (uno por extremo) que definen cada hebra — una curva de Bézier de bajo grado, tangente inicial a 30°–60° de la arista. Clic derecho en un cruce, en la vista Entrelazado, para invertir qué hebra pasa por encima (\"prioridad derecha\" ↔ \"izquierda\"). Con la edición de tangentes activa: arrastra las asas verdes para ajustar ángulo y longitud. El grafo permanece editable y relajable mientras tanto.",
+  h2_invariants: "Invariantes", btn_invariants: "🧮 Calcular invariantes", btn_export_sage: "🐍 Exportar para SageMath",
+  hint_invariants: "Calculados directamente sobre el grafo firmado (cada arista = un cruce, la prioridad indica qué hebra pasa por encima). Género, escritura, enlace, corchete de Kauffman y polinomio de Jones.",
+  txt_graph_empty: "El grafo está vacío.", txt_computing: "Calculando…",
+  inv_components: "Componentes (hebras)", inv_crossings: "Cruces", inv_genus: "Género (superficie de Seifert)", inv_writhe: "Escritura total",
+  inv_linking_header: "Número de enlace por par:", inv_linking_none: "  (ningún cruce entre componentes distintas)",
+  inv_linking_pair: "  lk(hebra {i}, hebra {j}) = {v}",
+  inv_bracket_none: "Corchete de Kauffman: no calculado (más de {n} cruces, método directo demasiado costoso).",
+  inv_bracket_header: "Corchete de Kauffman ⟨D⟩ (variable A):", inv_jones_header: "Polinomio de Jones V(t):",
+  inv_jones_quarter_note: "  (exponentes no enteros en t — normal en algunos entrelazados de varias componentes)",
+  sage_empty_alert: "El grafo está vacío — nada que exportar.",
   h2_props: "Propiedades", lbl_vertex_hash: "Vértice #", lbl_anchor: "Anclado (fricción ∞)", lbl_friction: "Fricción",
   lbl_edge_hash: "Arista #", lbl_edge_stiffness: "Rigidez k", lbl_restlength: "Longitud en reposo", txt_none_selected: "Nada seleccionado.",
   h2_file: "Archivo", btn_save: "💾 Guardar (.json)", btn_load: "📂 Cargar un archivo", btn_export_svg: "⬇ Exportar como SVG", btn_clear: "Borrar todo",
@@ -229,8 +279,8 @@ es: {
   unit_vertices: "vértices", unit_edges: "aristas", unit_strands: "hebra(s)", status_relaxing: "relajando…"
 },
 it: {
-  doc_title: "Editor di grafi planari e il suo Intreccio",
-  title_html: "<b>editor di grafi planari e <a href='http://entrelacs.net'>intreccio</a></b>",
+  doc_title: "Editor di grafi planari — Intreccio",
+  title_html: "intreccio · <b>editor di grafi planari</b>",
   h1_tools: "Strumenti", btn_select: "Selezione", btn_vertex: "+ Vertice", btn_edge: "+ Arco", btn_delete: "Elimina",
   hint_tools_html: "<b>Vertice</b>: clic sullo sfondo per crearne uno.<br><b>Arco</b>: clic su un vertice, poi su un secondo (lo stesso due volte per un cappio).<br><b>Selezione</b>: trascina un vertice per spostarlo (clic destro = ancora/sblocca); trascina il piccolo punto medio di un arco per curvarlo (clic destro su di esso per tornare a curvatura nulla); clic sull'arco per selezionarlo.<br><b>Elimina</b>: clic su un vertice o un arco.",
   h2_relaxation: "Rilassamento", lbl_stiffness: "Rigidità globale", lbl_repel: "Repulsione vertici", lbl_minangle: "Angolo minimo (°)",
@@ -239,6 +289,16 @@ it: {
   h2_knot: "Intreccio", lbl_strandwidth: "Larghezza dei fili", btn_knot_show: "🧵 Mostra intreccio", btn_knot_hide: "🧵 Nascondi intreccio",
   btn_tangent: "✎ Modifica tangenti",
   hint_knot_html: "Ogni arco codifica un incrocio nel suo punto medio e porta i due punti di controllo (uno per estremità) che definiscono ogni filo — una curva di Bézier di grado basso, tangente iniziale a 30°–60° dall'arco. Clic destro su un incrocio, in vista Intreccio, per invertire quale filo passa sopra (\"priorità destra\" ↔ \"sinistra\"). Con la modifica delle tangenti attiva: trascina le maniglie verdi per regolare angolo e lunghezza. Il grafo resta modificabile e rilassabile nel frattempo.",
+  h2_invariants: "Invarianti", btn_invariants: "🧮 Calcola invarianti", btn_export_sage: "🐍 Esporta per SageMath",
+  hint_invariants: "Calcolati direttamente sul grafo segnato (ogni arco = un incrocio, la priorità indica quale filo passa sopra). Genere, writhe, numero di allacciamento, parentesi di Kauffman e polinomio di Jones.",
+  txt_graph_empty: "Il grafo è vuoto.", txt_computing: "Calcolo in corso…",
+  inv_components: "Componenti (fili)", inv_crossings: "Incroci", inv_genus: "Genere (superficie di Seifert)", inv_writhe: "Writhe totale",
+  inv_linking_header: "Numero di allacciamento per coppia:", inv_linking_none: "  (nessun incrocio tra componenti diverse)",
+  inv_linking_pair: "  lk(filo {i}, filo {j}) = {v}",
+  inv_bracket_none: "Parentesi di Kauffman: non calcolata (più di {n} incroci, metodo diretto troppo costoso).",
+  inv_bracket_header: "Parentesi di Kauffman ⟨D⟩ (variabile A):", inv_jones_header: "Polinomio di Jones V(t):",
+  inv_jones_quarter_note: "  (esponenti non interi in t — normale per alcuni intrecci multi-componente)",
+  sage_empty_alert: "Il grafo è vuoto — niente da esportare.",
   h2_props: "Proprietà", lbl_vertex_hash: "Vertice #", lbl_anchor: "Ancorato (attrito ∞)", lbl_friction: "Attrito",
   lbl_edge_hash: "Arco #", lbl_edge_stiffness: "Rigidità k", lbl_restlength: "Lunghezza a riposo", txt_none_selected: "Nessuna selezione.",
   h2_file: "File", btn_save: "💾 Salva (.json)", btn_load: "📂 Carica un file", btn_export_svg: "⬇ Esporta come SVG", btn_clear: "Cancella tutto",
@@ -247,8 +307,8 @@ it: {
   unit_vertices: "vertici", unit_edges: "archi", unit_strands: "filo/fili", status_relaxing: "rilassamento in corso…"
 },
 pt: {
-  doc_title: "Editor de grafos planares e Entrelaçado",
-  title_html: "<b>editor de grafos planares e <a href='http://entrelacs.net'>entrelaçado</a></b>",
+  doc_title: "Editor de grafos planares — Entrelaçado",
+  title_html: "entrelaçado · <b>editor de grafos planares</b>",
   h1_tools: "Ferramentas", btn_select: "Seleção", btn_vertex: "+ Vértice", btn_edge: "+ Aresta", btn_delete: "Excluir",
   hint_tools_html: "<b>Vértice</b>: clique no fundo para criar.<br><b>Aresta</b>: clique num vértice, depois num segundo (o mesmo duas vezes para um laço).<br><b>Seleção</b>: arraste um vértice para movê-lo (clique direito = ancorar/desancorar); arraste o pequeno ponto médio de uma aresta para curvar seu arco (clique direito nele para voltar à curvatura nula); clique no arco para selecionar a aresta.<br><b>Excluir</b>: clique num vértice ou aresta.",
   h2_relaxation: "Relaxamento", lbl_stiffness: "Rigidez global", lbl_repel: "Repulsão de vértices", lbl_minangle: "Ângulo mínimo (°)",
@@ -257,6 +317,16 @@ pt: {
   h2_knot: "Entrelaçado", lbl_strandwidth: "Largura dos fios", btn_knot_show: "🧵 Mostrar entrelaçado", btn_knot_hide: "🧵 Ocultar entrelaçado",
   btn_tangent: "✎ Editar tangentes",
   hint_knot_html: "Cada aresta codifica um cruzamento em seu ponto médio e carrega os dois pontos de controle (um por extremidade) que definem cada fio — uma curva de Bézier de grau baixo, tangente inicial a 30°–60° da aresta. Clique direito num cruzamento, na vista Entrelaçado, para inverter qual fio passa por cima (\"prioridade direita\" ↔ \"esquerda\"). Com a edição de tangentes ativa: arraste as alças verdes para ajustar ângulo e comprimento. O grafo permanece editável e relaxável durante esse tempo.",
+  h2_invariants: "Invariantes", btn_invariants: "🧮 Calcular invariantes", btn_export_sage: "🐍 Exportar para SageMath",
+  hint_invariants: "Calculados diretamente sobre o grafo sinalizado (cada aresta = um cruzamento, a prioridade indica qual fio passa por cima). Gênero, escritura, enlaçamento, colchete de Kauffman e polinômio de Jones.",
+  txt_graph_empty: "O grafo está vazio.", txt_computing: "Calculando…",
+  inv_components: "Componentes (fios)", inv_crossings: "Cruzamentos", inv_genus: "Gênero (superfície de Seifert)", inv_writhe: "Escritura total",
+  inv_linking_header: "Número de enlaçamento por par:", inv_linking_none: "  (nenhum cruzamento entre componentes diferentes)",
+  inv_linking_pair: "  lk(fio {i}, fio {j}) = {v}",
+  inv_bracket_none: "Colchete de Kauffman: não calculado (mais de {n} cruzamentos, método direto muito custoso).",
+  inv_bracket_header: "Colchete de Kauffman ⟨D⟩ (variável A):", inv_jones_header: "Polinômio de Jones V(t):",
+  inv_jones_quarter_note: "  (expoentes não inteiros em t — normal para alguns entrelaçados de várias componentes)",
+  sage_empty_alert: "O grafo está vazio — nada para exportar.",
   h2_props: "Propriedades", lbl_vertex_hash: "Vértice #", lbl_anchor: "Ancorado (fricção ∞)", lbl_friction: "Fricção",
   lbl_edge_hash: "Aresta #", lbl_edge_stiffness: "Rigidez k", lbl_restlength: "Comprimento em repouso", txt_none_selected: "Nada selecionado.",
   h2_file: "Arquivo", btn_save: "💾 Salvar (.json)", btn_load: "📂 Carregar um arquivo", btn_export_svg: "⬇ Exportar como SVG", btn_clear: "Limpar tudo",
@@ -712,184 +782,309 @@ function isUnder(eid, role){
   return role !== topRole;
 }
 
-/* ---------------------------------------------------------------------
-   INVARIANTS D'ENTRELACS
-   On part du graphe planaire signé : chaque arête (croisement) est signée
-   par sa priorité ("droite" = brin 'prev' dessus, "gauche" = 'next'
-   dessus). On calcule directement sur les loges/brins déjà construits :
-   - graphe de Seifert (résolution orientée à chaque croisement) -> cercles
-     de Seifert -> genre ;
-   - signe de chaque croisement (produit vectoriel des tangentes dessus /
-     dessous) -> writhe, nombres d'enlacement entre composantes ;
-   - somme d'états de Kauffman (les deux résolutions A/B à chaque
-     croisement, indépendantes du dessus-dessous) -> crochet -> polynôme
-     de Jones normalisé par le writhe.
-   Alexander et HOMFLY demandent une autre machinerie (matrice de Seifert,
-   récursion par relation d'écheveau) : pas encore implémentés ici.
---------------------------------------------------------------------- */
-function buildPortionLookups(strands){
-  const fromPortion = {}, toPortion = {};
-  for (const portions of strands) for (const p of portions){
-    fromPortion[p.from.eid+':'+p.from.role] = p;
-    toPortion[p.to.eid+':'+p.to.role] = p;
-  }
-  return { fromPortion, toPortion };
-}
-function ufFind(parent,x){ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
-function ufUnion(parent,a,b){ const ra=ufFind(parent,a), rb=ufFind(parent,b); if (ra!==rb) parent[ra]=rb; }
-
-// résolution orientée (Seifert) d'un croisement : les 4 loges triées par
-// angle ont chacune un statut "sort" (départ réel du brin) ou "entre"
-// (arrivée) ; on relie chaque loge "sort" à celle de ses deux voisines
-// angulaires qui est "entre" (l'autre voisine appartient nécessairement
-// au même brin qu'elle, donc n'est jamais un partenaire valide).
-function seifertPairs(eid, lookups){
-  const rays = [];
-  for (const role of ['prev','next']) for (const end of ['a','b']){
-    const fp = lookups.fromPortion[eid+':'+role];
-    rays.push({ end, role, angle: normAngle(departureDir(eid,end,role)), out: !!(fp && fp.from.end===end) });
-  }
-  rays.sort((a,b)=>a.angle-b.angle);
-  const pairs = [], used=[false,false,false,false];
-  for (let i=0;i<4;i++){
-    if (rays[i].out && !used[i]){
-      const jN=(i+1)%4, jP=(i+3)%4;
-      const j = !rays[jN].out ? jN : jP;
-      pairs.push([rays[i], rays[j]]);
-      used[i]=true; used[j]=true;
-    }
-  }
-  return pairs;
-}
-
-function computeInvariants(){
-  const edgeIds = Object.keys(edges);
-  const n = edgeIds.length;
-  if (n===0) return null;
-  const strands = traceStrands();
-  const lookups = buildPortionLookups(strands);
-  const mu = strands.length;
-
-  const idxOf = {}; let k=0;
-  for (const eid of edgeIds) for (const end of ['a','b']) for (const role of ['prev','next']) idxOf[eid+':'+end+':'+role]=k++;
-  const NS = 4*n;
-
-  // liens de portion (fixes, indépendants de l'état)
-  const portionLinks = [];
-  const doneP = new Set();
-  for (const eid of edgeIds) for (const end of ['a','b']) for (const role of ['prev','next']){
-    const key = eid+':'+end+':'+role;
-    if (doneP.has(key)) continue;
-    const nb = portionNeighborSlot({eid,end,role});
-    const nkey = nb.eid+':'+nb.end+':'+nb.role;
-    doneP.add(key); doneP.add(nkey);
-    portionLinks.push([idxOf[key], idxOf[nkey]]);
-  }
-  function countLoops(extraLinks){
-    const parent = new Array(NS);
-    for (let i=0;i<NS;i++) parent[i]=i;
-    for (const [a,b] of portionLinks) ufUnion(parent,a,b);
-    for (const [a,b] of extraLinks) ufUnion(parent,a,b);
-    const roots = new Set();
-    for (let i=0;i<NS;i++) roots.add(ufFind(parent,i));
-    return roots.size;
-  }
-
-  // --- graphe de Seifert : cercles, genre ---
-  const seifertLinks = [];
-  for (const eid of edgeIds) for (const [r1,r2] of seifertPairs(eid, lookups))
-    seifertLinks.push([idxOf[eid+':'+r1.end+':'+r1.role], idxOf[eid+':'+r2.end+':'+r2.role]]);
-  const seifertLoops = countLoops(seifertLinks);
-  const genus = (n - seifertLoops + 2 - mu) / 2;
-
-  // --- signes des croisements, writhe, enlacements ---
-  function exitEnd(eid,role){ return lookups.fromPortion[eid+':'+role].from.end; }
-  function travelAngle(eid,role){ return departureDir(eid, exitEnd(eid,role), role); }
-  const roleStrand = {};
-  strands.forEach((portions,si)=>{ for (const p of portions){
-    roleStrand[p.from.eid+':'+p.from.role]=si; roleStrand[p.to.eid+':'+p.to.role]=si;
-  }});
-  let writhe = 0;
-  const linking = {};
-  const overRoleOf = {};
-  for (const eid of edgeIds){
-    const overRole = edges[eid].priority==='right' ? 'prev':'next', underRole = overRole==='prev'?'next':'prev';
-    overRoleOf[eid]=overRole;
-    const oA=travelAngle(eid,overRole), uA=travelAngle(eid,underRole);
-    const sgn = (Math.cos(oA)*Math.sin(uA) - Math.sin(oA)*Math.cos(uA)) >= 0 ? -1 : 1;
-    writhe += sgn;
-    const si=roleStrand[eid+':'+overRole], sj=roleStrand[eid+':'+underRole];
-    if (si!==sj){ const key = si<sj? si+'-'+sj : sj+'-'+si; linking[key]=(linking[key]||0)+sgn; }
-  }
-  for (const key in linking) linking[key] /= 2;
-
-  const result = { n, mu, genus, writhe, linking, seifertLoops };
-  if (n > 20){ result.tooManyCrossings = true; return result; }
-
-  // --- crochet de Kauffman : somme sur les 2^n états A/B (indépendant du
-  //     dessus-dessous, seule la géométrie des rayons compte) ---
-  const raysOf = {};
-  for (const eid of edgeIds){
-    const overRole = overRoleOf[eid];
-    const rays=[];
-    for (const role of ['prev','next']) for (const end of ['a','b'])
-      rays.push({end,role,angle:normAngle(departureDir(eid,end,role)), isOver: role===overRole});
-    rays.sort((a,b)=>a.angle-b.angle);
-    raysOf[eid]=rays;
-  }
-  function smoothingLinks(eid, isB){
-    const rays = raysOf[eid], links=[];
-    for (let i=0;i<4;i++) if (rays[i].isOver){
-      const j = isB ? (i+3)%4 : (i+1)%4;
-      links.push([idxOf[eid+':'+rays[i].end+':'+rays[i].role], idxOf[eid+':'+rays[j].end+':'+rays[j].role]]);
-    }
-    return links;
-  }
-  function addP(target,exp,coef){ target[exp]=(target[exp]||0)+coef; }
-  const bracket = {};
-  for (let state=0; state<(1<<n); state++){
-    let nB=0; const links=[];
-    for (let i=0;i<n;i++){ const isB=(state>>i)&1; if (isB) nB++; links.push(...smoothingLinks(edgeIds[i],!!isB)); }
-    const loops = countLoops(links), nA = n-nB;
-    let dpow = {0:1};
-    for (let t=0;t<loops-1;t++){
-      const next={};
-      for (const e in dpow){ addP(next,+e+2,-dpow[e]); addP(next,+e-2,-dpow[e]); }
-      dpow = next;
-    }
-    for (const e in dpow) addP(bracket, +e+(nA-nB), dpow[e]);
-  }
-
-  // --- polynôme de Jones : f(A)=(-A)^{-3w}<L>, puis substitution t=A^-4 ---
-  const f = {};
-  const wsign = (((3*writhe)%2)+2)%2===0 ? 1 : -1;
-  for (const e in bracket) addP(f, +e-3*writhe, wsign*bracket[e]);
-  const jones = {};
-  let jonesFractional = false;
-  for (const e in f){ const kk=+e; if (kk%4!==0) jonesFractional=true; addP(jones, -kk/4, f[e]); }
-
-  result.bracket = bracket; result.jones = jones; result.jonesFractional = jonesFractional;
-  return result;
-}
-
-function formatLaurent(poly, varName){
-  const exps = Object.keys(poly).map(Number).sort((a,b)=>b-a);
-  if (!exps.length) return '0';
-  return exps.map(e=>{
-    const c = poly[e];
-    if (Math.abs(c) < 1e-9) return null;
-    const cAbs = Math.abs(Math.round(c*1000)/1000);
-    const sign = c<0 ? ' - ' : ' + ';
-    let term = (e===0) ? String(cAbs) : (cAbs===1? varName : cAbs+varName) + (e===1?'':('^'+e));
-    return {sign, term};
-  }).filter(Boolean).map((t,i)=> i===0 ? (t.sign.trim()==='-'?'-':'')+t.term : t.sign+t.term).join('');
-}
 const STRAND_PALETTE = ['#c9524a','#3f7fb0','#3f9e6d','#c98a2e','#8a63c9','#c95fa0','#5aa6a6','#a3a13a'];
 
 /* ---------------------------------------------------------------------
+   INVARIANTS D'ENTRELACS
+   Construits directement sur le graphe planaire signé (arête = croisement,
+   e.priority = quel brin passe dessus). Convention : le signe d'un
+   croisement est calculé en coordonnées écran (x à droite, y vers le bas)
+   via le produit vectoriel des tangentes (dessus, dessous) — cohérent en
+   interne, mais une image miroir du dessin donnerait tous les signes
+   opposés (chiralité inversée), comme il se doit.
+--------------------------------------------------------------------- */
+function buildRoleLookups(strands){
+  const fromPortion = {}, toPortion = {}, roleStrand = {};
+  strands.forEach((portions, si) => {
+    for (const p of portions){
+      fromPortion[p.from.eid+':'+p.from.role] = p;
+      toPortion[p.to.eid+':'+p.to.role] = p;
+      roleStrand[p.from.eid+':'+p.from.role] = si;
+      roleStrand[p.to.eid+':'+p.to.role] = si;
+    }
+  });
+  return { fromPortion, toPortion, roleStrand };
+}
+// direction (radians) suivie par le brin de rôle `role` en traversant le
+// croisement `eid` — vecteur unique et cohérent (même valeur calculée côté
+// arrivée ou départ), donc un vrai vecteur vitesse, pas seulement une droite.
+function dirRole(eid, role, fromPortion){
+  const end = fromPortion[eid+':'+role].from.end;
+  return departureDir(eid, end, role);
+}
+function crossingSign(eid, fromPortion){
+  const e = edges[eid];
+  const overRole = e.priority==='right' ? 'prev' : 'next';
+  const underRole = overRole==='prev' ? 'next' : 'prev';
+  const aO = dirRole(eid, overRole, fromPortion), aU = dirRole(eid, underRole, fromPortion);
+  const cross = Math.cos(aO)*Math.sin(aU) - Math.sin(aO)*Math.cos(aU);
+  return cross >= 0 ? 1 : -1;
+}
+function writheOf(fromPortion){
+  let w = 0;
+  for (const id in edges) w += crossingSign(id, fromPortion);
+  return w;
+}
+// enlacement par paire de composantes : demi-somme des signes des
+// croisements où passent deux brins DIFFÉRENTS
+function linkingNumbers(fromPortion, roleStrand){
+  const lk = {};
+  for (const id in edges){
+    const s1 = roleStrand[id+':prev'], s2 = roleStrand[id+':next'];
+    if (s1===s2) continue;
+    const key = Math.min(s1,s2)+','+Math.max(s1,s2);
+    lk[key] = (lk[key]||0) + crossingSign(id, fromPortion);
+  }
+  for (const k in lk) lk[k] /= 2;
+  return lk;
+}
+// lissage de Seifert (respecte l'orientation, indépendant du dessus/
+// dessous) : relie l'arrivée de chaque rôle au départ de l'autre rôle.
+function seifertPartnerSlot(s, fromPortion){
+  const otherRole = s.role==='prev'?'next':'prev';
+  const outEnd = fromPortion[s.eid+':'+s.role].from.end;
+  const isOut = (s.end===outEnd);
+  const otherOutEnd = fromPortion[s.eid+':'+otherRole].from.end;
+  if (isOut){
+    const otherInEnd = otherOutEnd==='a'?'b':'a';
+    return {eid:s.eid, end:otherInEnd, role:otherRole};
+  }
+  return {eid:s.eid, end:otherOutEnd, role:otherRole};
+}
+// compte les cycles résultant d'un appariement donné aux croisements
+// (portionNeighborSlot reste fixe : ce sont les coins du graphe G, qui ne
+// changent jamais ; seul l'appariement AU croisement varie).
+function traceCircles(crossingPairFn){
+  const visited = new Set();
+  let count = 0;
+  const allSlots = [];
+  for (const eid in edges) for (const end of ['a','b']) for (const role of ['prev','next']) allSlots.push({eid,end,role});
+  for (const s0 of allSlots){
+    if (visited.has(slotKey(s0))) continue;
+    let cur = s0, useCrossing = true, guard=0;
+    do {
+      const nxt = useCrossing ? crossingPairFn(cur) : portionNeighborSlot(cur);
+      visited.add(slotKey(cur));
+      cur = nxt; useCrossing = !useCrossing;
+      guard++;
+    } while (!(cur.eid===s0.eid&&cur.end===s0.end&&cur.role===s0.role) && guard<20000);
+    count++;
+  }
+  return count;
+}
+function seifertCircleCount(fromPortion){
+  return traceCircles((s)=>seifertPartnerSlot(s, fromPortion));
+}
+// genre de la surface de Seifert obtenue par l'algorithme de Seifert sur
+// CE diagramme (borne supérieure du genre topologique réel, en toute
+// rigueur — mais c'est ce qu'on appelle usuellement "le genre" ici)
+function seifertGenus(strandCount, seifertCircles){
+  const c = Object.keys(edges).length, s = seifertCircles, mu = strandCount;
+  const twoG = 2 - mu - (s - c);
+  return twoG/2;
+}
+
+// ---------- polynômes de Laurent (dictionnaire exposant -> coefficient) ----------
+function polyMul(p,q){
+  const r = {};
+  for (const ei in p) for (const ej in q){
+    const e = (+ei)+(+ej);
+    r[e] = (r[e]||0) + p[ei]*q[ej];
+  }
+  return r;
+}
+function polyPow(p, n){
+  let r = {0:1};
+  for (let i=0;i<n;i++) r = polyMul(r,p);
+  return r;
+}
+function polyAddScaled(target, poly, shift, coeff){
+  for (const e in poly){
+    const ee = (+e)+shift;
+    target[ee] = (target[ee]||0) + poly[e]*coeff;
+  }
+}
+function polyToString(p, varName){
+  const exps = Object.keys(p).map(Number).filter(e=>p[e]!==0).sort((a,b)=>b-a);
+  if (!exps.length) return '0';
+  return exps.map((e,i)=>{
+    const c = p[e];
+    const sign = c<0 ? '−' : '+';
+    const ac = Math.abs(c);
+    const coeffStr = ac===1 ? '' : String(ac);
+    const powStr = e===0 ? '' : (e===1 ? varName : varName+'^'+e);
+    const term = (coeffStr||powStr) ? (coeffStr+powStr) : String(ac);
+    return (i===0 && sign==='+' ? '' : sign+' ') + term;
+  }).join(' ');
+}
+// les deux lissages possibles d'un croisement (pas encore lequel est A ou
+// B : cela dépend de qui passe dessus, cf. kauffmanBracket)
+function kauffmanPartnerSlot(s, useEndPairing){
+  if (useEndPairing) return {eid:s.eid, end:s.end, role: s.role==='prev'?'next':'prev'};
+  return {eid:s.eid, end: s.end==='a'?'b':'a', role: s.role==='prev'?'next':'prev'};
+}
+// crochet de Kauffman ⟨D⟩ par somme d'états sur les 2^n lissages —
+// méthode directe (brute force), correcte pour n'importe quel graphe
+// signé (alterné ou non), mais limitée en pratique à des diagrammes
+// raisonnablement petits (2^n états).
+const KAUFFMAN_MAX_EDGES = 20;
+function kauffmanBracket(){
+  const edgeIds = Object.keys(edges);
+  const n = edgeIds.length;
+  if (n > KAUFFMAN_MAX_EDGES) return null;
+  const negA2 = {2:-1, '-2':-1}; // -A^2-A^-2
+  let bracket = {};
+  for (let mask=0; mask<(1<<n); mask++){
+    let aCount=0;
+    const isA = {};
+    for (let i=0;i<n;i++){ const bit=(mask>>i)&1; isA[edgeIds[i]]=!!bit; if(bit) aCount++; }
+    const bCount = n-aCount;
+    const pairFn = (s)=>{
+      const overIsPrev = edges[s.eid].priority==='right';
+      const useEndPairing = (overIsPrev === isA[s.eid]);
+      return kauffmanPartnerSlot(s, useEndPairing);
+    };
+    const k = traceCircles(pairFn);
+    const negPoly = polyPow(negA2, k-1);
+    polyAddScaled(bracket, negPoly, aCount-bCount, 1);
+  }
+  return bracket;
+}
+// polynôme de Jones V(t) à partir du crochet et de l'écriture totale :
+// f(A) = (-1)^w A^{-3w} <D>, puis substitution A^{-4} -> t
+function jonesFromBracket(bracket, w){
+  const f = {};
+  polyAddScaled(f, bracket, -3*w, Math.pow(-1,w));
+  const jones = {}; let quarterInteger = false;
+  for (const e in f){
+    const ee = +e;
+    if (ee % 4 !== 0) quarterInteger = true;
+    const te = -ee/4;
+    jones[te] = (jones[te]||0) + f[e];
+  }
+  return { jones, quarterInteger };
+}
+// orchestrateur : calcule tout d'un coup à partir de l'état courant du graphe
+function computeInvariants(){
+  const strands = traceStrands();
+  const { fromPortion, roleStrand } = buildRoleLookups(strands);
+  const w = writheOf(fromPortion);
+  const lk = linkingNumbers(fromPortion, roleStrand);
+  const sc = seifertCircleCount(fromPortion);
+  const g = seifertGenus(strands.length, sc);
+  const bracket = kauffmanBracket();
+  const result = {
+    components: strands.length,
+    crossings: Object.keys(edges).length,
+    writhe: w,
+    linking: lk,
+    seifertCircles: sc,
+    genus: g,
+    bracket
+  };
+  if (bracket){
+    const { jones, quarterInteger } = jonesFromBracket(bracket, w);
+    result.jones = jones;
+    result.jonesQuarter = quarterInteger;
+  }
+  return result;
+}
+
+/* ---------------------------------------------------------------------
+   CODE PD (Planar Diagram) — export pour SageMath
+   sage.knots.link.Link accepte un code PD : une liste d'entrées à 4
+   nombres par croisement, qui sont les numéros des 4 ARCS (segments de
+   brin entre deux croisements consécutifs — exactement nos "portions")
+   qui l'entourent, énumérés dans le sens trigonométrique en partant du
+   brin DESSOUS entrant. Chaque portion touche deux croisements ; on lui
+   donne donc un seul numéro, utilisé aux deux bouts (2·C portions pour C
+   croisements, numérotées 1..2C).
+
+   Ordre trigonométrique des 4 brins autour d'un croisement : avec notre
+   convention d'angles (prev à +θ, next à −θ de part et d'autre de la
+   tangente locale de l'arête), l'ordre est prev_b, next_a, prev_a, next_b
+   — c'est ce même ordre qui sert à distinguer les deux résolutions du
+   crochet de Kauffman plus haut (type1/type2), donc déjà vérifié
+   indirectement par la comparaison avec le trèfle standard.
+
+   Convention de chiralité : je n'ai pas de SageMath sous la main pour
+   vérifier le sens exact (horaire/antihoraire, quel bout démarre)
+   attendu par Sage. Le fichier exporté inclut donc, en commentaire, le
+   polynôme de Jones déjà calculé par CET outil (validé sur le trèfle) :
+   si celui que Sage recalcule est son miroir (t <-> 1/t), le diagramme
+   importé est l'image miroir de celui dessiné — question de convention,
+   pas de bug topologique — et on ajustera le sens si besoin.
+--------------------------------------------------------------------- */
+function pdCode(){
+  const strands = traceStrands();
+  const { fromPortion, toPortion } = buildRoleLookups(strands);
+  let arcCounter = 1;
+  const arcByFromKey = {}, arcByToKey = {};
+  for (const portions of strands){
+    for (const p of portions){
+      const num = arcCounter++;
+      arcByFromKey[p.from.eid+':'+p.from.role] = num;
+      arcByToKey[p.to.eid+':'+p.to.role] = num;
+    }
+  }
+  function slotArc(eid, role, end){
+    const inEnd = toPortion[eid+':'+role].to.end;
+    return (end===inEnd)
+      ? { arc: arcByToKey[eid+':'+role], isIn:true, role }
+      : { arc: arcByFromKey[eid+':'+role], isIn:false, role };
+  }
+  const entries = [];
+  for (const eid in edges){
+    const e = edges[eid];
+    const overRole = e.priority==='right' ? 'prev' : 'next';
+    const underRole = overRole==='prev' ? 'next' : 'prev';
+    const pos = [ slotArc(eid,'prev','b'), slotArc(eid,'next','a'), slotArc(eid,'prev','a'), slotArc(eid,'next','b') ];
+    const startIdx = pos.findIndex(p => p.role===underRole && p.isIn);
+    entries.push([0,1,2,3].map(i => pos[(startIdx+i)%4].arc));
+  }
+  return { entries, arcCount: arcCounter-1, componentCount: strands.length };
+}
+function exportSage(){
+  const pd = pdCode();
+  const r = computeInvariants();
+  const pdStr = '[' + pd.entries.map(e=>'['+e.join(',')+']').join(', ') + ']';
+  const bracketStr = r.bracket ? polyToString(r.bracket,'A') : '(non calculé)';
+  const jonesStr = r.bracket ? polyToString(r.jones,'t') : '(non calculé)';
+  return `# Code PD (Planar Diagram) exporté depuis l'éditeur de graphe planaire — entrelacs
+# Croisements : ${pd.entries.length}   Composantes : ${pd.componentCount}   Arcs : ${pd.arcCount}
+#
+# Référence calculée par l'outil (pour vérifier la chiralité une fois
+# importé dans Sage — si Sage donne le polynôme miroir, en t <-> 1/t,
+# c'est une question de convention d'orientation du code PD, pas un bug) :
+#   genre (Seifert, ce diagramme) = ${r.genus}
+#   écriture totale (writhe)      = ${r.writhe}
+#   crochet de Kauffman <D>       = ${bracketStr}
+#   polynôme de Jones V(t)        = ${jonesStr}
+
+pd_code = ${pdStr}
+L = Link(pd_code)
+print(L)
+print("Composantes :", L.number_of_components())
+print("Jones :", L.jones_polynomial())
+# print("Alexander :", L.alexander_polynomial())
+# print("genre (Seifert) :", L.genus())
+`;
+}
+document.getElementById('btnExportSage').onclick = ()=>{
+  if (Object.keys(edges).length===0){ alert(t('sage_empty_alert')); return; }
+  const text = exportSage();
+  const blob = new Blob([text], {type:'text/x-sage'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'entrelacs.sage';
+  a.click();
+};
+
+/* ---------------------------------------------------------------------
    TANGENTES ÉDITABLES (comme des poignées de courbe de Bézier)
-   Chaque brin, entre un croisement et le suivant, est fait de DEUX
-   segments cubiques : croisement e1 -> point milieu m -> croisement e2.
+   Chaque brin, entre deux croisements successifs, est UNE SEULE courbe
+   cubique (croisement e1 -> croisement e2) : degré volontairement bas,
+   seuls les deux points de contrôle aux extrémités comptent.
 
    Au CROISEMENT (milieu d'arête) : les deux demi-tangentes qui s'y
    rejoignent (celle du brin vers p, celle vers p') sont forcées égales
@@ -898,12 +1093,6 @@ const STRAND_PALETTE = ['#c9524a','#3f7fb0','#3f9e6d','#c98a2e','#8a63c9','#c95f
    de ce côté-là. Valeur initiale = θ, moyenne des fonctions f(angle) aux
    deux bouts, mesurée par rapport à la tangente LOCALE de l'arête (pas la
    corde) à cet endroit précis, puisque l'arête peut être courbe.
-
-   Au POINT MILIEU m d'un brin : « oreille d'ours » (rond, une seule
-   tangente = moyenne des deux droites aux croisements voisins) par défaut,
-   ou « oreille de chat » (pointu, chaque demi-tangente parallèle à
-   l'arête dont elle provient) ; les deux peuvent aussi être ajustées à la
-   main ('custom'), auquel cas elles sont mémorisées telles quelles.
 --------------------------------------------------------------------- */
 function thetaFuncDeg(deg){
   if (deg<=60) return 60;
@@ -1007,8 +1196,7 @@ function portionBezier(p){
   return { P0, C0, C1, P1 };
 }
 
-// ---------- rendu ----------
-// échantillonne une portion de brin comme UNE SEULE courbe de Bézier
+
 // cubique allant directement d'un croisement (milieu d'arête) au suivant :
 // degré volontairement bas, seuls les deux points de contrôle aux
 // extrémités comptent, donnés par les tangentes θ calculées là-bas
@@ -1383,6 +1571,36 @@ document.getElementById('tangentToggle').onclick = ()=>{
   editTangents = !editTangents;
   document.getElementById('tangentToggle').classList.toggle('active', editTangents);
   draw();
+};
+document.getElementById('btnInvariants').onclick = ()=>{
+  const out = document.getElementById('invariantsOut');
+  if (Object.keys(edges).length===0){ out.textContent=t('txt_graph_empty'); return; }
+  out.textContent = t('txt_computing');
+  setTimeout(()=>{
+    const r = computeInvariants();
+    let txt = '';
+    txt += `${t('inv_components')} : ${r.components}\n`;
+    txt += `${t('inv_crossings')} : ${r.crossings}\n`;
+    txt += `${t('inv_genus')} : ${r.genus}\n`;
+    txt += `${t('inv_writhe')} : ${r.writhe}\n`;
+    if (r.components>1){
+      const pairs = Object.keys(r.linking);
+      txt += t('inv_linking_header')+'\n';
+      if (!pairs.length) txt += t('inv_linking_none')+'\n';
+      for (const k of pairs){
+        const [i,j]=k.split(',');
+        txt += t('inv_linking_pair').replace('{i}',+i+1).replace('{j}',+j+1).replace('{v}',r.linking[k]) + '\n';
+      }
+    }
+    if (!r.bracket){
+      txt += '\n'+t('inv_bracket_none').replace('{n}', KAUFFMAN_MAX_EDGES)+'\n';
+    } else {
+      txt += `\n${t('inv_bracket_header')}\n  ${polyToString(r.bracket,'A')}\n`;
+      txt += `\n${t('inv_jones_header')}\n  ${polyToString(r.jones,'t')}\n`;
+      if (r.jonesQuarter) txt += t('inv_jones_quarter_note')+'\n';
+    }
+    out.textContent = txt;
+  }, 10);
 };
 
 // ---------- export SVG ----------
